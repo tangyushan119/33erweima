@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { ref, reactive } from 'vue'
 import { Send, RotateCcw, CheckCircle } from 'lucide-vue-next'
+import { useRouter } from 'vue-router'
+import { useDataStore } from '@/stores/dataStore'
 
 interface UnitFormData {
   unitName: string
@@ -14,6 +16,9 @@ interface UnitFormData {
 const emit = defineEmits<{
   (e: 'submit', data: UnitFormData): void
 }>()
+
+const router = useRouter()
+const dataStore = useDataStore()
 
 const formData = reactive<UnitFormData>({
   unitName: '',
@@ -65,14 +70,23 @@ const handleSubmit = async () => {
   
   await new Promise(resolve => setTimeout(resolve, 1500))
   
+  dataStore.addPendingRecord({
+    unitName: formData.unitName,
+    creditCode: formData.creditCode,
+    contactName: formData.contactName,
+    contactPhone: formData.contactPhone,
+    address: formData.address,
+    qrCodeUrl: formData.qrCodeUrl,
+  })
+  
   emit('submit', { ...formData })
   
   showSuccess.value = true
   isSubmitting.value = false
   
   setTimeout(() => {
-    showSuccess.value = false
-  }, 3000)
+    router.push('/data-verify')
+  }, 1500)
 }
 
 const handleReset = () => {

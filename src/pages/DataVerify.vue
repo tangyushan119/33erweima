@@ -1,52 +1,17 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { ClipboardCheck, CheckCircle, XCircle, Search, Filter, Clock, User, MapPin } from 'lucide-vue-next'
-
-interface VerifyRecord {
-  id: string
-  unitName: string
-  creditCode: string
-  contactName: string
-  contactPhone: string
-  address: string
-  createTime: string
-  status: 'pending' | 'approved' | 'rejected'
-}
+import { useDataStore } from '@/stores/dataStore'
 
 const searchKeyword = ref('')
 const filterStatus = ref('all')
 
-const records = ref<VerifyRecord[]>([
-  {
-    id: '1',
-    unitName: '示例科技有限公司',
-    creditCode: '91110101MA01A1A1A1',
-    contactName: '张三',
-    contactPhone: '13800138000',
-    address: '北京市朝阳区科技园区A座1001室',
-    createTime: '2026-06-20 10:30:00',
-    status: 'pending',
-  },
-  {
-    id: '2',
-    unitName: '测试数据有限公司',
-    creditCode: '91110102MA02B2B2B2',
-    contactName: '李四',
-    contactPhone: '13900139000',
-    address: '上海市浦东新区软件园B座2002室',
-    createTime: '2026-06-19 15:45:00',
-    status: 'pending',
-  },
-  {
-    id: '3',
-    unitName: '演示企业管理有限公司',
-    creditCode: '91110103MA03C3C3C3',
-    contactName: '王五',
-    contactPhone: '13700137000',
-    address: '广州市天河区科技园C座3003室',
-    createTime: '2026-06-18 09:00:00',
-    status: 'approved',
-  },
+const dataStore = useDataStore()
+
+const allRecords = computed(() => [
+  ...dataStore.pendingRecords,
+  ...dataStore.approvedRecords,
+  ...dataStore.rejectedRecords,
 ])
 
 const statusOptions = [
@@ -56,38 +21,37 @@ const statusOptions = [
   { value: 'rejected', label: '已驳回' },
 ]
 
-const filteredRecords = ref(records.value)
-
-const handleSearch = () => {
-  filteredRecords.value = records.value.filter(record => 
-    record.unitName.includes(searchKeyword.value) ||
-    record.contactName.includes(searchKeyword.value) ||
-    record.creditCode.includes(searchKeyword.value)
-  )
-}
-
-const handleFilterChange = () => {
-  if (filterStatus.value === 'all') {
-    filteredRecords.value = records.value
-  } else {
-    filteredRecords.value = records.value.filter(record => record.status === filterStatus.value)
+const filteredRecords = computed(() => {
+  let result = allRecords.value
+  
+  if (filterStatus.value !== 'all') {
+    result = result.filter(record => record.status === filterStatus.value)
   }
-}
+  
+  if (searchKeyword.value) {
+    const keyword = searchKeyword.value.toLowerCase()
+    result = result.filter(record => 
+      record.unitName.toLowerCase().includes(keyword) ||
+      record.contactName.toLowerCase().includes(keyword) ||
+      record.creditCode.toLowerCase().includes(keyword)
+    )
+  }
+  
+  return result
+})
+
+const pendingCount = computed(() => dataStore.pendingRecords.length)
+
+const handleSearch = () => {}
+
+const handleFilterChange = () => {}
 
 const handleApprove = (id: string) => {
-  const record = records.value.find(r => r.id === id)
-  if (record) {
-    record.status = 'approved'
-    handleFilterChange()
-  }
+  dataStore.approveRecord(id)
 }
 
 const handleReject = (id: string) => {
-  const record = records.value.find(r => r.id === id)
-  if (record) {
-    record.status = 'rejected'
-    handleFilterChange()
-  }
+  dataStore.rejectRecord(id)
 }
 
 const getStatusStyle = (status: string) => {
@@ -133,7 +97,7 @@ const getStatusText = (status: string) => {
       <div class="flex items-center gap-3">
         <div class="flex items-center gap-2 px-4 py-2 bg-yellow-50 rounded-lg">
           <Clock class="w-4 h-4 text-yellow-600" />
-          <span class="text-sm font-medium text-yellow-700">{{ records.filter(r => r.status === 'pending').length }} 条待审核</span>
+          <span class="text-sm font-medium text-yellow-700">{{ pendingCount }} 条待审核</span>
         </div>
       </div>
     </div>

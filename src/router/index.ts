@@ -1,9 +1,9 @@
-import { createRouter, createWebHistory } from 'vue-router'
+import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import UnitEntry from '@/pages/UnitEntry.vue'
 import DataVerify from '@/pages/DataVerify.vue'
 import DataApplication from '@/pages/DataApplication.vue'
 
-const routes = [
+const routes: RouteRecordRaw[] = [
   {
     path: '/',
     redirect: '/data-collection/unit-entry',

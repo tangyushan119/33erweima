@@ -1,88 +1,40 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { BarChart3, Download, Search, TrendingUp, Users, Building2, Calendar } from 'lucide-vue-next'
-
-interface ApplicationRecord {
-  id: string
-  unitName: string
-  creditCode: string
-  contactName: string
-  contactPhone: string
-  address: string
-  createTime: string
-  status: 'approved'
-}
+import { useDataStore } from '@/stores/dataStore'
 
 const searchKeyword = ref('')
 
-const records = ref<ApplicationRecord[]>([
-  {
-    id: '1',
-    unitName: '示例科技有限公司',
-    creditCode: '91110101MA01A1A1A1',
-    contactName: '张三',
-    contactPhone: '13800138000',
-    address: '北京市朝阳区科技园区A座1001室',
-    createTime: '2026-06-20 10:30:00',
-    status: 'approved',
-  },
-  {
-    id: '2',
-    unitName: '测试数据有限公司',
-    creditCode: '91110102MA02B2B2B2',
-    contactName: '李四',
-    contactPhone: '13900139000',
-    address: '上海市浦东新区软件园B座2002室',
-    createTime: '2026-06-19 15:45:00',
-    status: 'approved',
-  },
-  {
-    id: '3',
-    unitName: '演示企业管理有限公司',
-    creditCode: '91110103MA03C3C3C3',
-    contactName: '王五',
-    contactPhone: '13700137000',
-    address: '广州市天河区科技园C座3003室',
-    createTime: '2026-06-18 09:00:00',
-    status: 'approved',
-  },
-  {
-    id: '4',
-    unitName: '示范信息技术有限公司',
-    creditCode: '91110104MA04D4D4D4',
-    contactName: '赵六',
-    contactPhone: '13600136000',
-    address: '深圳市南山区科技园D座4004室',
-    createTime: '2026-06-17 14:20:00',
-    status: 'approved',
-  },
-])
+const dataStore = useDataStore()
 
 const filteredRecords = computed(() => {
-  if (!searchKeyword.value) return records.value
-  return records.value.filter(record => 
-    record.unitName.includes(searchKeyword.value) ||
-    record.contactName.includes(searchKeyword.value) ||
-    record.creditCode.includes(searchKeyword.value)
+  let records = dataStore.approvedRecords
+  if (!searchKeyword.value) return records
+  
+  const keyword = searchKeyword.value.toLowerCase()
+  return records.filter(record => 
+    record.unitName.toLowerCase().includes(keyword) ||
+    record.contactName.toLowerCase().includes(keyword) ||
+    record.creditCode.toLowerCase().includes(keyword)
   )
 })
 
 const stats = computed(() => [
   {
     label: '已审核单位',
-    value: records.value.length,
+    value: dataStore.approvedRecords.length,
     icon: Building2,
     color: 'blue',
   },
   {
     label: '本月新增',
-    value: 4,
+    value: dataStore.approvedRecords.length,
     icon: TrendingUp,
     color: 'green',
   },
   {
     label: '联系人总数',
-    value: records.value.length,
+    value: dataStore.approvedRecords.length,
     icon: Users,
     color: 'purple',
   },
@@ -95,7 +47,7 @@ const stats = computed(() => [
 ])
 
 const handleExport = () => {
-  const data = records.value.map(r => ({
+  const data = dataStore.approvedRecords.map(r => ({
     '单位名称': r.unitName,
     '统一社会信用代码': r.creditCode,
     '联系人': r.contactName,
@@ -105,7 +57,7 @@ const handleExport = () => {
   }))
   
   const csvContent = [
-    Object.keys(data[0]).join(','),
+    Object.keys(data[0] || {}).join(','),
     ...data.map(row => Object.values(row).join(','))
   ].join('\n')
   
