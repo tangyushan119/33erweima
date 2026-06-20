@@ -86,27 +86,27 @@ const handleClearLogs = () => {
 </script>
 
 <template>
-  <div class="animate-fade-in">
-    <div class="mb-6 flex items-center justify-between">
-      <div class="flex items-center gap-3">
-        <div class="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
-          <FileText class="w-6 h-6 text-blue-600" />
+  <div class="animate-fade-in space-y-6">
+    <div class="flex items-center justify-between">
+      <div class="flex items-center gap-4">
+        <div class="w-14 h-14 bg-blue-100 rounded-xl flex items-center justify-center">
+          <FileText class="w-7 h-7 text-blue-600" />
         </div>
         <div>
-          <h2 class="text-xl font-bold text-gray-800">操作日志</h2>
-          <p class="text-sm text-gray-500">记录系统操作历史，便于追溯与审计</p>
+          <h2 class="text-2xl font-bold text-gray-800">操作日志</h2>
+          <p class="text-sm text-gray-500 mt-1">记录系统操作历史，便于追溯与审计</p>
         </div>
       </div>
       
-      <div class="flex items-center gap-3">
-        <div class="flex items-center gap-2 px-4 py-2 bg-gray-50 rounded-lg">
+      <div class="flex items-center gap-4">
+        <div class="flex items-center gap-2 px-5 py-2.5 bg-gray-50 rounded-lg">
           <FileText class="w-4 h-4 text-gray-500" />
           <span class="text-sm font-medium text-gray-600">{{ dataStore.operationLogs.length }} 条日志</span>
         </div>
         
         <button
           @click="handleClearLogs"
-          class="flex items-center gap-1 px-4 py-2 text-sm font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors"
+          class="flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors"
         >
           <Trash2 class="w-4 h-4" />
           清空日志
@@ -116,13 +116,13 @@ const handleClearLogs = () => {
 
     <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
       <div class="flex items-center gap-4 mb-6">
-        <div class="relative flex-1 max-w-md">
-          <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+        <div class="relative flex-1 max-w-lg">
+          <Search class="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
           <input
             v-model="searchKeyword"
             type="text"
             placeholder="搜索操作对象、详情或操作人"
-            class="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            class="w-full pl-12 pr-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           />
         </div>
         
@@ -130,7 +130,7 @@ const handleClearLogs = () => {
           <Filter class="w-5 h-5 text-gray-400" />
           <select
             v-model="filterType"
-            class="px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            class="px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           >
             <option v-for="option in operationTypeOptions" :key="option.value" :value="option.value">
               {{ option.label }}
@@ -143,42 +143,59 @@ const handleClearLogs = () => {
         <div
           v-for="log in filteredLogs"
           :key="log.id"
-          class="p-4 border border-gray-100 rounded-lg hover:bg-gray-50 transition-colors"
+          class="p-5 border border-gray-100 rounded-xl hover:bg-gray-50 transition-all duration-200"
         >
-          <div class="flex items-start justify-between mb-3">
-            <div class="flex items-center gap-3">
+          <div class="flex items-start justify-between mb-4">
+            <div class="flex items-center gap-3 flex-wrap">
               <span 
-                class="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium"
+                class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium"
                 :class="getOperationTypeStyle(log.operationType)"
               >
                 {{ getOperationTypeText(log.operationType) }}
               </span>
-              <span class="text-sm text-gray-500">ID: {{ log.targetId }}</span>
+              <span class="text-sm text-gray-400">ID: {{ log.targetId }}</span>
             </div>
-            <div class="flex items-center gap-1 text-sm text-gray-400">
+            <div class="flex items-center gap-1.5 text-sm text-gray-400">
               <Clock class="w-4 h-4" />
               {{ log.createTime }}
             </div>
           </div>
           
-          <div class="flex items-center gap-2 mb-2">
-            <Target class="w-4 h-4 text-gray-400" />
-            <span class="text-sm font-medium text-gray-800">{{ log.targetName }}</span>
+          <div class="flex items-start gap-3 mb-3">
+            <div class="w-8 h-8 flex items-center justify-center bg-blue-50 rounded-lg flex-shrink-0">
+              <Target class="w-4 h-4 text-blue-500" />
+            </div>
+            <div>
+              <span class="text-sm font-medium text-gray-500">操作对象</span>
+              <p class="text-base font-medium text-gray-800 mt-0.5 break-all">{{ log.targetName }}</p>
+            </div>
           </div>
           
-          <div class="flex items-start gap-2 mb-2">
-            <Info class="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
-            <span class="text-sm text-gray-600">{{ log.detail }}</span>
+          <div class="flex items-start gap-3 mb-3">
+            <div class="w-8 h-8 flex items-center justify-center bg-gray-50 rounded-lg flex-shrink-0">
+              <Info class="w-4 h-4 text-gray-500" />
+            </div>
+            <div>
+              <span class="text-sm font-medium text-gray-500">操作详情</span>
+              <p class="text-sm text-gray-600 mt-0.5 leading-relaxed whitespace-pre-wrap break-all">{{ log.detail }}</p>
+            </div>
           </div>
           
-          <div class="flex items-center gap-2">
-            <User class="w-4 h-4 text-gray-400" />
-            <span class="text-sm text-gray-500">操作人：{{ log.operator }}</span>
+          <div class="flex items-center gap-3 pt-3 border-t border-gray-100">
+            <div class="w-8 h-8 flex items-center justify-center bg-green-50 rounded-lg flex-shrink-0">
+              <User class="w-4 h-4 text-green-500" />
+            </div>
+            <div>
+              <span class="text-sm font-medium text-gray-500">操作人</span>
+              <p class="text-sm text-gray-700 mt-0.5">{{ log.operator }}</p>
+            </div>
           </div>
         </div>
 
-        <div v-if="filteredLogs.length === 0" class="py-12 text-center">
-          <FileText class="w-12 h-12 text-gray-300 mx-auto mb-4" />
+        <div v-if="filteredLogs.length === 0" class="py-16 text-center">
+          <div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <FileText class="w-8 h-8 text-gray-300" />
+          </div>
           <p class="text-gray-500">暂无操作日志</p>
         </div>
       </div>

@@ -6,7 +6,7 @@ import { useRoute } from 'vue-router'
 const route = useRoute()
 
 const showSideMenu = () => {
-  return route.path.startsWith('/data-collection')
+  return route.path.startsWith('/data-collection') || route.path.startsWith('/operation-logs')
 }
 </script>
 
