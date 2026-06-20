@@ -4,6 +4,7 @@ import DataVerify from '@/pages/DataVerify.vue'
 import DataApplication from '@/pages/DataApplication.vue'
 import QrCodeGenerator from '@/pages/QrCodeGenerator.vue'
 import MobileForm from '@/pages/MobileForm.vue'
+import OperationLogs from '@/pages/OperationLogs.vue'
 
 const routes: RouteRecordRaw[] = [
   {
@@ -23,6 +24,11 @@ const routes: RouteRecordRaw[] = [
     path: '/data-verify',
     name: 'dataVerify',
     component: DataVerify,
+  },
+  {
+    path: '/operation-logs',
+    name: 'operationLogs',
+    component: OperationLogs,
   },
   {
     path: '/data-application',

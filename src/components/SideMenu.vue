@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Building2 } from 'lucide-vue-next'
+import { Building2, FileText } from 'lucide-vue-next'
 import { useRouter, useRoute } from 'vue-router'
 
 const router = useRouter()
@@ -12,11 +12,16 @@ const sideMenuItems = [
     icon: Building2,
     path: '/data-collection/unit-entry',
   },
+  {
+    name: '操作日志',
+    icon: FileText,
+    path: '/operation-logs',
+  },
 ]
 
 const isActive = computed(() => {
   const path = route.path
-  return path.startsWith('/data-collection')
+  return path.startsWith('/data-collection') || path.startsWith('/operation-logs')
 })
 
 const handleMenuClick = (path: string) => {
