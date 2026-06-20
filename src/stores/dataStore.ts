@@ -9,8 +9,20 @@ export interface UnitRecord {
   contactPhone: string
   address: string
   qrCodeUrl: string
+  qrCodeId: string
   createTime: string
   status: 'pending' | 'approved' | 'rejected'
+}
+
+export interface QrCodeRecord {
+  id: string
+  name: string
+  description: string
+  formUrl: string
+  qrCodeDataUrl: string
+  createTime: string
+  scanCount: number
+  status: 'active' | 'inactive'
 }
 
 export const useDataStore = defineStore('data', () => {
@@ -66,10 +78,24 @@ export const useDataStore = defineStore('data', () => {
 
   const rejectedRecords = ref<UnitRecord[]>([])
 
+  const qrCodeRecords = ref<QrCodeRecord[]>([
+    {
+      id: 'q1',
+      name: '单位信息采集码',
+      description: '用于采集单位基本信息的二维码',
+      formUrl: '/mobile/form/q1',
+      qrCodeDataUrl: '',
+      createTime: '2026-06-20 09:00:00',
+      scanCount: 156,
+      status: 'active',
+    },
+  ])
+
   const addPendingRecord = (record: Omit<UnitRecord, 'id' | 'createTime' | 'status'>) => {
     const newRecord: UnitRecord = {
       ...record,
       id: Date.now().toString(),
+      qrCodeId: '',
       createTime: new Date().toLocaleString('zh-CN', {
         year: 'numeric',
         month: '2-digit',
@@ -82,6 +108,46 @@ export const useDataStore = defineStore('data', () => {
     }
     pendingRecords.value.unshift(newRecord)
     return newRecord
+  }
+
+  const addQrCodeRecord = (record: Omit<QrCodeRecord, 'id' | 'createTime' | 'scanCount'>) => {
+    const newRecord: QrCodeRecord = {
+      ...record,
+      id: 'q' + Date.now(),
+      createTime: new Date().toLocaleString('zh-CN', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+      }).replace(/\//g, '-'),
+      scanCount: 0,
+    }
+    qrCodeRecords.value.unshift(newRecord)
+    return newRecord
+  }
+
+  const updateQrCodeScanCount = (id: string) => {
+    const record = qrCodeRecords.value.find(r => r.id === id)
+    if (record) {
+      record.scanCount++
+      return record
+    }
+    return null
+  }
+
+  const toggleQrCodeStatus = (id: string) => {
+    const record = qrCodeRecords.value.find(r => r.id === id)
+    if (record) {
+      record.status = record.status === 'active' ? 'inactive' : 'active'
+      return record
+    }
+    return null
+  }
+
+  const getQrCodeById = (id: string) => {
+    return qrCodeRecords.value.find(r => r.id === id)
   }
 
   const approveRecord = (id: string) => {
@@ -110,8 +176,13 @@ export const useDataStore = defineStore('data', () => {
     pendingRecords,
     approvedRecords,
     rejectedRecords,
+    qrCodeRecords,
     addPendingRecord,
     approveRecord,
     rejectRecord,
+    addQrCodeRecord,
+    updateQrCodeScanCount,
+    toggleQrCodeStatus,
+    getQrCodeById,
   }
 })

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, reactive } from 'vue'
-import { Send, RotateCcw, CheckCircle } from 'lucide-vue-next'
+import QRCode from 'qrcode'
+import { Send, RotateCcw, CheckCircle, QrCode, Download } from 'lucide-vue-next'
 import { useRouter } from 'vue-router'
 import { useDataStore } from '@/stores/dataStore'
 
@@ -32,6 +33,8 @@ const formData = reactive<UnitFormData>({
 const errors = reactive<Partial<UnitFormData>>({})
 const showSuccess = ref(false)
 const isSubmitting = ref(false)
+const generatedQrCodeDataUrl = ref('')
+const showQrCodeModal = ref(false)
 
 const validateForm = (): boolean => {
   Object.keys(errors).forEach(key => delete errors[key as keyof UnitFormData])
@@ -77,6 +80,7 @@ const handleSubmit = async () => {
     contactPhone: formData.contactPhone,
     address: formData.address,
     qrCodeUrl: formData.qrCodeUrl,
+    qrCodeId: '',
   })
   
   emit('submit', { ...formData })
@@ -87,6 +91,42 @@ const handleSubmit = async () => {
   setTimeout(() => {
     router.push('/data-verify')
   }, 1500)
+}
+
+const generateEntryQrCode = async () => {
+  const baseUrl = window.location.origin
+  const qrCodeId = Date.now().toString()
+  const formUrl = `/mobile/form/${qrCodeId}`
+  
+  try {
+    generatedQrCodeDataUrl.value = await QRCode.toDataURL(baseUrl + formUrl, {
+      width: 256,
+      margin: 2,
+      color: {
+        dark: '#000000',
+        light: '#ffffff',
+      },
+    })
+    
+    dataStore.addQrCodeRecord({
+      name: `${formData.unitName || '单位'} - 采集码`,
+      description: '用于采集单位信息的二维码',
+      formUrl: formUrl,
+      qrCodeDataUrl: generatedQrCodeDataUrl.value,
+      status: 'active',
+    })
+    
+    showQrCodeModal.value = true
+  } catch (error) {
+    console.error('二维码生成失败:', error)
+  }
+}
+
+const downloadQrCode = () => {
+  const link = document.createElement('a')
+  link.href = generatedQrCodeDataUrl.value
+  link.download = `${formData.unitName || '单位'}_采集码.png`
+  link.click()
 }
 
 const handleReset = () => {
@@ -200,6 +240,14 @@ const handleReset = () => {
       <div class="flex items-center justify-end gap-4 pt-4">
         <button
           type="button"
+          @click="generateEntryQrCode"
+          class="flex items-center gap-2 px-6 py-3 border border-green-300 text-green-700 rounded-lg font-medium hover:bg-green-50 transition-all duration-200"
+        >
+          <QrCode class="w-4 h-4" />
+          生成采集码
+        </button>
+        <button
+          type="button"
           @click="handleReset"
           class="flex items-center gap-2 px-6 py-3 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-all duration-200"
         >
@@ -216,5 +264,45 @@ const handleReset = () => {
         </button>
       </div>
     </form>
+
+    <Teleport to="body">
+      <div 
+        v-if="showQrCodeModal" 
+        class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+        @click.self="showQrCodeModal = false"
+      >
+        <div class="bg-white rounded-2xl w-full max-w-md p-6 animate-fade-in">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-bold text-gray-800">采集码已生成</h3>
+            <button 
+              @click="showQrCodeModal = false"
+              class="text-gray-400 hover:text-gray-600"
+            >
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+              </svg>
+            </button>
+          </div>
+          
+          <div class="bg-gray-50 rounded-xl p-6 mb-4">
+            <img 
+              :src="generatedQrCodeDataUrl" 
+              alt="采集码"
+              class="w-64 h-64 mx-auto object-contain"
+            />
+          </div>
+          
+          <p class="text-sm text-gray-600 text-center mb-4">扫描二维码即可填写单位信息</p>
+          
+          <button
+            @click="downloadQrCode"
+            class="w-full flex items-center justify-center gap-2 px-4 py-3 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors"
+          >
+            <Download class="w-4 h-4" />
+            下载二维码
+          </button>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>

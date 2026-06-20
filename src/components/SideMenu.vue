@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Building2 } from 'lucide-vue-next'
+import { Building2, QrCode } from 'lucide-vue-next'
 import { useRouter, useRoute } from 'vue-router'
 
 const router = useRouter()
@@ -11,6 +11,11 @@ const sideMenuItems = [
     name: '单位录入',
     icon: Building2,
     path: '/data-collection/unit-entry',
+  },
+  {
+    name: '二维码管理',
+    icon: QrCode,
+    path: '/data-collection/qr-code',
   },
 ]
 

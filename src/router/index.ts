@@ -2,6 +2,8 @@ import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import UnitEntry from '@/pages/UnitEntry.vue'
 import DataVerify from '@/pages/DataVerify.vue'
 import DataApplication from '@/pages/DataApplication.vue'
+import QrCodeGenerator from '@/pages/QrCodeGenerator.vue'
+import MobileForm from '@/pages/MobileForm.vue'
 
 const routes: RouteRecordRaw[] = [
   {
@@ -26,6 +28,16 @@ const routes: RouteRecordRaw[] = [
     path: '/data-application',
     name: 'dataApplication',
     component: DataApplication,
+  },
+  {
+    path: '/data-collection/qr-code',
+    name: 'qrCodeGenerator',
+    component: QrCodeGenerator,
+  },
+  {
+    path: '/mobile/form/:id',
+    name: 'mobileForm',
+    component: MobileForm,
   },
 ]
 
