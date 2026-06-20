@@ -14,7 +14,7 @@ const formData = ref({
   description: '',
 })
 
-const selectedQrCode = ref<typeof dataStore.qrCodeRecords.value[0] | null>(null)
+const selectedQrCode = ref<typeof dataStore.qrCodeRecords[0] | null>(null)
 
 const filteredQrCodes = computed(() => {
   let result = dataStore.qrCodeRecords
@@ -81,7 +81,7 @@ const handleToggleStatus = (id: string) => {
   dataStore.toggleQrCodeStatus(id)
 }
 
-const handlePreview = (record: typeof dataStore.qrCodeRecords.value[0]) => {
+const handlePreview = (record: typeof dataStore.qrCodeRecords[0]) => {
   selectedQrCode.value = record
 }
 

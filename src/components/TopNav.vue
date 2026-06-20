@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { QrCode, ClipboardCheck, BarChart3 } from 'lucide-vue-next'
+import { QrCode, ClipboardCheck, BarChart3, ScanLine } from 'lucide-vue-next'
 import { useRouter, useRoute } from 'vue-router'
 
 const router = useRouter()
@@ -11,6 +11,11 @@ const navItems = [
     name: '数据采集',
     icon: QrCode,
     path: '/data-collection/unit-entry',
+  },
+  {
+    name: '二维码采集',
+    icon: ScanLine,
+    path: '/qr-code-collection',
   },
   {
     name: '数据核实',
@@ -27,6 +32,7 @@ const navItems = [
 const currentNav = computed(() => {
   const path = route.path
   if (path.startsWith('/data-collection')) return '/data-collection/unit-entry'
+  if (path.startsWith('/qr-code-collection')) return '/qr-code-collection'
   return path
 })
 

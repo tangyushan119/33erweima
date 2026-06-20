@@ -30,7 +30,7 @@ const routes: RouteRecordRaw[] = [
     component: DataApplication,
   },
   {
-    path: '/data-collection/qr-code',
+    path: '/qr-code-collection',
     name: 'qrCodeGenerator',
     component: QrCodeGenerator,
   },
