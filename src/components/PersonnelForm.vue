@@ -2,6 +2,7 @@
 import { ref, reactive, watch } from 'vue'
 import { Send, RotateCcw, CheckCircle } from 'lucide-vue-next'
 import { useDataStore } from '@/stores/dataStore'
+import { validateForm, validateName, validateIdCard, validatePhone, validateSelect, validateAge, validateRequired } from '@/lib/validation'
 
 interface PersonnelFormData {
   name: string
@@ -41,7 +42,7 @@ const formData = reactive<PersonnelFormData>({
   unitName: '',
 })
 
-const errors = reactive<Partial<PersonnelFormData>>({})
+const errors = reactive<Record<string, string>>({})
 const showSuccess = ref(false)
 const isSubmitting = ref(false)
 
@@ -51,78 +52,47 @@ watch(() => props.editData, (newData) => {
   }
 }, { immediate: true })
 
-const parseIdCard = (idCard: string) => {
-  if (!idCard) return
-  
-  const cleanIdCard = idCard.replace(/\s/g, '').toUpperCase()
-  
-  if (cleanIdCard.length === 18 && /^[1-9]\d{5}(18|19|20)\d{2}(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])\d{3}[\dX]$/.test(cleanIdCard)) {
+watch(() => formData.idCard, (newIdCard) => {
+  if (!newIdCard) return
+
+  const cleanIdCard = newIdCard.replace(/\s/g, '').toUpperCase()
+
+  if (/^[1-9]\d{5}(18|19|20)\d{2}(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])\d{3}[\dX]$/.test(cleanIdCard)) {
     const year = parseInt(cleanIdCard.substring(6, 10))
     const month = parseInt(cleanIdCard.substring(10, 12))
     const day = parseInt(cleanIdCard.substring(12, 14))
-    
+
     const today = new Date()
     let age = today.getFullYear() - year
-    
+
     if (today.getMonth() + 1 < month || (today.getMonth() + 1 === month && today.getDate() < day)) {
       age--
     }
-    
+
     formData.age = age.toString()
-    
+
     const genderCode = parseInt(cleanIdCard.substring(16, 17))
     formData.gender = genderCode % 2 === 1 ? '男' : '女'
   }
-}
-
-watch(() => formData.idCard, (newIdCard) => {
-  parseIdCard(newIdCard)
 })
 
-const validateForm = (): boolean => {
-    Object.keys(errors).forEach(key => delete errors[key as keyof PersonnelFormData])
+const validators: Record<keyof PersonnelFormData, (value: unknown) => string | null> = {
+  name: (value) => validateName(value as string),
+  idCard: (value) => validateIdCard(value as string),
+  phone: (value) => validatePhone(value as string),
+  gender: (value) => validateSelect(value as string, '性别'),
+  age: (value) => validateAge(value as string),
+  department: (value) => validateRequired(value as string, '部门'),
+  position: (value) => validateRequired(value as string, '职位'),
+  unitId: (value) => validateSelect(value as string, '所属单位'),
+  unitName: () => null,
+}
 
-    if (!formData.name.trim()) {
-      errors.name = '请输入姓名'
-    } else if (!/^[\u4e00-\u9fa5]{2,4}(·[\u4e00-\u9fa5]{2,4})?$/.test(formData.name)) {
-      errors.name = '请输入2-4个汉字的中文姓名（少数民族姓名可带间隔号）'
-    }
-
-    if (!formData.idCard.trim()) {
-      errors.idCard = '请输入身份证号'
-    } else if (!/^[1-9]\d{5}(18|19|20)\d{2}(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])\d{3}[\dXx]$/.test(formData.idCard)) {
-      errors.idCard = '身份证号格式不正确'
-    }
-
-  if (!formData.phone.trim()) {
-    errors.phone = '请输入联系电话'
-  } else if (!/^1[3-9]\d{9}$/.test(formData.phone)) {
-    errors.phone = '联系电话格式不正确'
-  }
-
-  if (!formData.gender.trim()) {
-    errors.gender = '请选择性别'
-  }
-
-  if (!formData.age.trim()) {
-    errors.age = '请输入年龄'
-  } else if (!/^\d{1,3}$/.test(formData.age) || parseInt(formData.age) <= 0 || parseInt(formData.age) > 150) {
-    errors.age = '年龄格式不正确'
-  }
-
-  if (!formData.department.trim()) {
-    errors.department = '请输入部门'
-  }
-
-  if (!formData.position.trim()) {
-    errors.position = '请输入职位'
-  }
-
-  if (!formData.unitId.trim()) {
-    errors.unitId = '请选择所属单位'
-  }
-
-  return Object.keys(errors).length === 0
+const validateFormData = (): boolean => {
+  const result = validateForm(formData, validators)
+  Object.keys(errors).forEach(key => delete errors[key])
+  Object.assign(errors, result.errors)
+  return result.isValid
 }
 
 const handleUnitChange = (unitId: string) => {
@@ -131,7 +101,7 @@ const handleUnitChange = (unitId: string) => {
 }
 
 const handleSubmit = async () => {
-  if (!validateForm()) return
+  if (!validateFormData()) return
 
   isSubmitting.value = true
 
@@ -152,24 +122,18 @@ const handleSave = () => {
 }
 
 const handleReset = () => {
-  formData.name = ''
-  formData.idCard = ''
-  formData.phone = ''
-  formData.gender = ''
-  formData.age = ''
-  formData.department = ''
-  formData.position = ''
-  formData.unitId = ''
-  formData.unitName = ''
-  Object.keys(errors).forEach(key => delete errors[key as keyof PersonnelFormData])
+  Object.keys(formData).forEach(key => {
+    formData[key as keyof PersonnelFormData] = '' as PersonnelFormData[keyof PersonnelFormData]
+  })
+  Object.keys(errors).forEach(key => delete errors[key])
   emit('reset')
 }
 </script>
 
 <template>
   <div class="animate-fade-in">
-    <div 
-      v-if="showSuccess" 
+    <div
+      v-if="showSuccess"
       class="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg flex items-center gap-3 animate-slide-down"
     >
       <CheckCircle class="w-6 h-6 text-green-600" />
@@ -326,6 +290,3 @@ const handleReset = () => {
           {{ isSubmitting ? '提交中...' : '提交审核' }}
         </button>
       </div>
-    </form>
-  </div>
-</template>

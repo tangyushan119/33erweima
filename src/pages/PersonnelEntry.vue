@@ -1,111 +1,44 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
 import { Users, Info, Edit2, Trash2, Eye, EyeOff } from 'lucide-vue-next'
 import PersonnelForm from '@/components/PersonnelForm.vue'
 import { useDataStore, type PersonnelRecord } from '@/stores/dataStore'
-
-interface PersonnelFormData {
-  name: string
-  idCard: string
-  phone: string
-  gender: string
-  age: string
-  department: string
-  position: string
-  unitId: string
-  unitName: string
-}
+import { useRecordManagement } from '@/composables/useRecordManagement'
 
 const dataStore = useDataStore()
-const searchKeyword = ref('')
-const editingPersonnel = ref<PersonnelRecord | null>(null)
-const activeTab = ref<'pending' | 'approved' | 'rejected'>('pending')
 
-const currentRecords = computed(() => {
-  switch (activeTab.value) {
-    case 'pending':
-      return dataStore.personnelPendingRecords
-    case 'approved':
-      return dataStore.personnelApprovedRecords
-    case 'rejected':
-      return dataStore.personnelRejectedRecords
-    default:
-      return []
-  }
+const {
+  searchKeyword,
+  editingRecord,
+  activeTab,
+  filteredRecords,
+  handleSubmit,
+  handleSave,
+  handleEdit,
+  handleDelete,
+  handleToggleStatus,
+  handleReset,
+  getStatusText,
+  getStatusClass,
+} = useRecordManagement<PersonnelRecord>({
+  getPendingRecords: () => dataStore.personnelPendingRecords,
+  getApprovedRecords: () => dataStore.personnelApprovedRecords,
+  getRejectedRecords: () => dataStore.personnelRejectedRecords,
+  addRecord: (data) => dataStore.addPersonnelRecord(data as Omit<PersonnelRecord, 'id' | 'createTime' | 'updateTime' | 'status' | 'activeStatus'>),
+  updateRecord: (id, data) => dataStore.updatePersonnelRecord(id, data as Partial<Omit<PersonnelRecord, 'id' | 'createTime' | 'status' | 'activeStatus'>>),
+  deleteRecord: (id) => dataStore.deletePersonnelRecord(id),
+  toggleActiveStatus: (id) => dataStore.togglePersonnelActiveStatus(id),
+  searchFields: (record) => [
+    record.name,
+    record.idCard,
+    record.phone,
+    record.department,
+    record.position,
+    record.unitName,
+  ],
 })
 
-const filteredPersonnel = computed(() => {
-  let personnel = currentRecords.value
-  
-  if (searchKeyword.value) {
-    const keyword = searchKeyword.value.toLowerCase()
-    personnel = personnel.filter(p =>
-      p.name.toLowerCase().includes(keyword) ||
-      p.idCard.toLowerCase().includes(keyword) ||
-      p.phone.toLowerCase().includes(keyword) ||
-      p.department.toLowerCase().includes(keyword) ||
-      p.position.toLowerCase().includes(keyword) ||
-      p.unitName.toLowerCase().includes(keyword)
-    )
-  }
-  
-  return personnel
-})
-
-const handleSubmit = (data: PersonnelFormData) => {
-  if (editingPersonnel.value) {
-    dataStore.updatePersonnelRecord(editingPersonnel.value.id, data)
-    editingPersonnel.value = null
-  } else {
-    dataStore.addPersonnelRecord(data)
-  }
-}
-
-const handleSave = (data: PersonnelFormData) => {
-  if (editingPersonnel.value) {
-    dataStore.updatePersonnelRecord(editingPersonnel.value.id, data)
-    alert('草稿已保存')
-  } else {
-    dataStore.addPersonnelRecord(data)
-    alert('草稿已保存')
-  }
-}
-
-const handleEdit = (personnel: PersonnelRecord) => {
-  editingPersonnel.value = personnel
-}
-
-const handleDelete = (id: string) => {
-  if (confirm('确定要删除这条人员记录吗？')) {
-    dataStore.deletePersonnelRecord(id)
-  }
-}
-
-const handleToggleStatus = (id: string) => {
-  dataStore.togglePersonnelActiveStatus(id)
-}
-
-const handleReset = () => {
-  editingPersonnel.value = null
-}
-
-const getStatusText = (status: PersonnelRecord['status']) => {
-  switch (status) {
-    case 'pending': return '待审核'
-    case 'approved': return '已通过'
-    case 'rejected': return '已驳回'
-    default: return ''
-  }
-}
-
-const getStatusClass = (status: PersonnelRecord['status']) => {
-  switch (status) {
-    case 'pending': return 'bg-yellow-100 text-yellow-700'
-    case 'approved': return 'bg-green-100 text-green-700'
-    case 'rejected': return 'bg-red-100 text-red-700'
-    default: return 'bg-gray-100 text-gray-600'
-  }
-}
+const editingPersonnel = editingRecord
+const filteredPersonnel = filteredRecords
 </script>
 
 <template>

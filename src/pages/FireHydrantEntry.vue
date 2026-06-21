@@ -1,117 +1,44 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
 import { Droplets, Info, Edit2, Trash2, Eye, EyeOff } from 'lucide-vue-next'
 import FireHydrantForm from '@/components/FireHydrantForm.vue'
 import { useDataStore, type FireHydrantRecord } from '@/stores/dataStore'
-
-interface FireHydrantFormData {
-  hydrantCode: string
-  hydrantName: string
-  hydrantType: string
-  model: string
-  specification: string
-  installationDate: string
-  pressure: string
-  location: string
-  unitId: string
-  unitName: string
-  checkDate: string
-  nextCheckDate: string
-  manufacturer: string
-  inspector: string
-  inspectorPhone: string
-}
+import { useRecordManagement } from '@/composables/useRecordManagement'
 
 const dataStore = useDataStore()
-const searchKeyword = ref('')
-const editingHydrant = ref<FireHydrantRecord | null>(null)
-const activeTab = ref<'pending' | 'approved' | 'rejected'>('pending')
 
-const currentRecords = computed(() => {
-  switch (activeTab.value) {
-    case 'pending':
-      return dataStore.fireHydrantPendingRecords
-    case 'approved':
-      return dataStore.fireHydrantApprovedRecords
-    case 'rejected':
-      return dataStore.fireHydrantRejectedRecords
-    default:
-      return []
-  }
+const {
+  searchKeyword,
+  editingRecord,
+  activeTab,
+  filteredRecords,
+  handleSubmit,
+  handleSave,
+  handleEdit,
+  handleDelete,
+  handleToggleStatus,
+  handleReset,
+  getStatusText,
+  getStatusClass,
+} = useRecordManagement<FireHydrantRecord>({
+  getPendingRecords: () => dataStore.fireHydrantPendingRecords,
+  getApprovedRecords: () => dataStore.fireHydrantApprovedRecords,
+  getRejectedRecords: () => dataStore.fireHydrantRejectedRecords,
+  addRecord: (data) => dataStore.addFireHydrantRecord(data as Omit<FireHydrantRecord, 'id' | 'createTime' | 'updateTime' | 'status' | 'activeStatus'>),
+  updateRecord: (id, data) => dataStore.updateFireHydrantRecord(id, data as Partial<Omit<FireHydrantRecord, 'id' | 'createTime' | 'status' | 'activeStatus'>>),
+  deleteRecord: (id) => dataStore.deleteFireHydrantRecord(id),
+  toggleActiveStatus: (id) => dataStore.toggleFireHydrantActiveStatus(id),
+  searchFields: (record) => [
+    record.hydrantName,
+    record.hydrantCode,
+    record.hydrantType,
+    record.location,
+    record.unitName,
+    record.inspector,
+  ],
 })
 
-const filteredHydrants = computed(() => {
-  let hydrants = currentRecords.value
-  
-  if (searchKeyword.value) {
-    const keyword = searchKeyword.value.toLowerCase()
-    hydrants = hydrants.filter(h =>
-      h.hydrantName.toLowerCase().includes(keyword) ||
-      h.hydrantCode.toLowerCase().includes(keyword) ||
-      h.hydrantType.toLowerCase().includes(keyword) ||
-      h.location.toLowerCase().includes(keyword) ||
-      h.unitName.toLowerCase().includes(keyword) ||
-      h.inspector.toLowerCase().includes(keyword)
-    )
-  }
-  
-  return hydrants
-})
-
-const handleSubmit = (data: FireHydrantFormData) => {
-  if (editingHydrant.value) {
-    dataStore.updateFireHydrantRecord(editingHydrant.value.id, data)
-    editingHydrant.value = null
-  } else {
-    dataStore.addFireHydrantRecord(data)
-  }
-}
-
-const handleSave = (data: FireHydrantFormData) => {
-  if (editingHydrant.value) {
-    dataStore.updateFireHydrantRecord(editingHydrant.value.id, data)
-    alert('草稿已保存')
-  } else {
-    dataStore.addFireHydrantRecord(data)
-    alert('草稿已保存')
-  }
-}
-
-const handleEdit = (hydrant: FireHydrantRecord) => {
-  editingHydrant.value = hydrant
-}
-
-const handleDelete = (id: string) => {
-  if (confirm('确定要删除这条消火栓记录吗？')) {
-    dataStore.deleteFireHydrantRecord(id)
-  }
-}
-
-const handleToggleStatus = (id: string) => {
-  dataStore.toggleFireHydrantActiveStatus(id)
-}
-
-const handleReset = () => {
-  editingHydrant.value = null
-}
-
-const getStatusText = (status: FireHydrantRecord['status']) => {
-  switch (status) {
-    case 'pending': return '待审核'
-    case 'approved': return '已通过'
-    case 'rejected': return '已驳回'
-    default: return ''
-  }
-}
-
-const getStatusClass = (status: FireHydrantRecord['status']) => {
-  switch (status) {
-    case 'pending': return 'bg-yellow-100 text-yellow-700'
-    case 'approved': return 'bg-green-100 text-green-700'
-    case 'rejected': return 'bg-red-100 text-red-700'
-    default: return 'bg-gray-100 text-gray-600'
-  }
-}
+const editingHydrant = editingRecord
+const filteredHydrants = filteredRecords
 </script>
 
 <template>

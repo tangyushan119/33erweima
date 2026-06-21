@@ -2,7 +2,8 @@
 import { ref, reactive, watch } from 'vue'
 import { Send, RotateCcw, CheckCircle } from 'lucide-vue-next'
 import { useDataStore } from '@/stores/dataStore'
-import { checkImageDuplicate, type ImageFields } from '@/lib/imageUtils'
+import { useImageUpload } from '@/composables/useImageUpload'
+import { validateForm, validateRequired, validateSelect, validatePlateNumber, validateVin, validatePhone, validateName } from '@/lib/validation'
 
 interface VehicleFormData {
   plateNumber: string
@@ -87,12 +88,7 @@ const formData = reactive<VehicleFormData>({
   rightImageId: '',
 })
 
-const imageUploadRefs = {
-  frontImage: ref<HTMLInputElement | null>(null),
-  backImage: ref<HTMLInputElement | null>(null),
-  leftImage: ref<HTMLInputElement | null>(null),
-  rightImage: ref<HTMLInputElement | null>(null),
-}
+const { uploadErrors, handleImageUpload, removeImage, registerUploadRef, triggerUpload } = useImageUpload(formData)
 
 const imageLabels: Record<string, string> = {
   frontImage: '车辆前方',
@@ -101,51 +97,7 @@ const imageLabels: Record<string, string> = {
   rightImage: '车辆右侧',
 }
 
-const getImageIdField = (field: keyof VehicleFormData): keyof VehicleFormData => {
-  return `${field}Id` as keyof VehicleFormData
-}
-
-const handleImageUpload = (field: keyof VehicleFormData, event: Event) => {
-  const target = event.target as HTMLInputElement
-  const file = target.files?.[0]
-  
-  if (!file) return
-  
-  if (!file.type.startsWith('image/')) {
-    alert('请选择图片文件')
-    return
-  }
-  
-  if (checkImageDuplicate(file, formData as ImageFields, field)) {
-    alert('该图片已上传，请选择其他图片')
-    target.value = ''
-    return
-  }
-  
-  const fileIdentifier = `${file.name}-${file.size}-${file.lastModified}`
-  
-  const reader = new FileReader()
-  reader.onload = (e) => {
-    formData[field] = e.target?.result as string
-    const idField = getImageIdField(field)
-    formData[idField] = fileIdentifier
-  }
-  reader.readAsDataURL(file)
-  
-  target.value = ''
-}
-
-const removeImage = (field: keyof VehicleFormData) => {
-  formData[field] = ''
-  const idField = getImageIdField(field)
-  formData[idField] = ''
-  const input = imageUploadRefs[field as keyof typeof imageUploadRefs]
-  if (input.value) {
-    input.value.value = ''
-  }
-}
-
-const errors = reactive<Partial<VehicleFormData>>({})
+const errors = reactive<Record<string, string>>({})
 const showSuccess = ref(false)
 const isSubmitting = ref(false)
 
@@ -155,60 +107,34 @@ watch(() => props.editData, (newData) => {
   }
 }, { immediate: true })
 
-const validateForm = (): boolean => {
-  Object.keys(errors).forEach(key => delete errors[key as keyof VehicleFormData])
+const validators: Record<keyof VehicleFormData, (value: unknown) => string | null> = {
+  plateNumber: (value) => validatePlateNumber(value as string),
+  vehicleType: (value) => validateSelect(value as string, '车辆类型'),
+  vehicleBrand: (value) => validateRequired(value as string, '车辆品牌'),
+  vehicleModel: (value) => validateRequired(value as string, '车辆型号'),
+  vehicleColor: (value) => validateSelect(value as string, '车辆颜色'),
+  engineNumber: (value) => validateRequired(value as string, '发动机号'),
+  vin: (value) => validateVin(value as string),
+  registerDate: (value) => validateRequired(value as string, '注册日期'),
+  ownerName: (value) => validateName(value as string),
+  ownerPhone: (value) => validatePhone(value as string),
+  unitId: (value) => validateSelect(value as string, '所属单位'),
+  unitName: () => null,
+  frontImage: () => null,
+  backImage: () => null,
+  leftImage: () => null,
+  rightImage: () => null,
+  frontImageId: () => null,
+  backImageId: () => null,
+  leftImageId: () => null,
+  rightImageId: () => null,
+}
 
-  if (!formData.plateNumber.trim()) {
-    errors.plateNumber = '请输入车牌号'
-  } else if (!/^[京津沪渝冀豫云辽黑湘皖鲁新苏浙赣鄂桂甘晋蒙陕吉闽贵粤青藏川宁琼使领][A-HJ-NP-Z][A-HJ-NP-Z0-9]{4,5}[A-HJ-NP-Z0-9挂学警港澳]$/.test(formData.plateNumber.toUpperCase())) {
-    errors.plateNumber = '车牌号格式不正确'
-  }
-
-  if (!formData.vehicleType.trim()) {
-    errors.vehicleType = '请选择车辆类型'
-  }
-
-  if (!formData.vehicleBrand.trim()) {
-    errors.vehicleBrand = '请输入车辆品牌'
-  }
-
-  if (!formData.vehicleModel.trim()) {
-    errors.vehicleModel = '请输入车辆型号'
-  }
-
-  if (!formData.vehicleColor.trim()) {
-    errors.vehicleColor = '请选择车辆颜色'
-  }
-
-  if (!formData.engineNumber.trim()) {
-    errors.engineNumber = '请输入发动机号'
-  }
-
-  if (!formData.vin.trim()) {
-    errors.vin = '请输入车辆识别代号(VIN)'
-  } else if (!/^[A-HJ-NPR-Z0-9]{17}$/.test(formData.vin.toUpperCase())) {
-    errors.vin = '车辆识别代号(VIN)格式不正确，应为17位'
-  }
-
-  if (!formData.registerDate.trim()) {
-    errors.registerDate = '请选择注册日期'
-  }
-
-  if (!formData.ownerName.trim()) {
-    errors.ownerName = '请输入车主姓名'
-  }
-
-  if (!formData.ownerPhone.trim()) {
-    errors.ownerPhone = '请输入车主电话'
-  } else if (!/^1[3-9]\d{9}$/.test(formData.ownerPhone)) {
-    errors.ownerPhone = '车主电话格式不正确'
-  }
-
-  if (!formData.unitId.trim()) {
-    errors.unitId = '请选择所属单位'
-  }
-
-  return Object.keys(errors).length === 0
+const validateFormData = (): boolean => {
+  const result = validateForm(formData, validators)
+  Object.keys(errors).forEach(key => delete errors[key])
+  Object.assign(errors, result.errors)
+  return result.isValid
 }
 
 const handleUnitChange = (unitId: string) => {
@@ -217,7 +143,7 @@ const handleUnitChange = (unitId: string) => {
 }
 
 const handleSubmit = async () => {
-  if (!validateForm()) return
+  if (!validateFormData()) return
 
   isSubmitting.value = true
 
@@ -238,37 +164,18 @@ const handleSave = () => {
 }
 
 const handleReset = () => {
-  formData.plateNumber = ''
-  formData.vehicleType = ''
-  formData.vehicleBrand = ''
-  formData.vehicleModel = ''
-  formData.vehicleColor = ''
-  formData.engineNumber = ''
-  formData.vin = ''
-  formData.registerDate = ''
-  formData.ownerName = ''
-  formData.ownerPhone = ''
-  formData.unitId = ''
-  formData.unitName = ''
-  formData.frontImage = ''
-  formData.backImage = ''
-  formData.leftImage = ''
-  formData.rightImage = ''
-  Object.keys(imageUploadRefs).forEach(key => {
-    const input = imageUploadRefs[key as keyof typeof imageUploadRefs]
-    if (input.value) {
-      input.value.value = ''
-    }
+  Object.keys(formData).forEach(key => {
+    formData[key as keyof VehicleFormData] = '' as VehicleFormData[keyof VehicleFormData]
   })
-  Object.keys(errors).forEach(key => delete errors[key as keyof VehicleFormData])
+  Object.keys(errors).forEach(key => delete errors[key])
   emit('reset')
 }
 </script>
 
 <template>
   <div class="animate-fade-in">
-    <div 
-      v-if="showSuccess" 
+    <div
+      v-if="showSuccess"
       class="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg flex items-center gap-3 animate-slide-down"
     >
       <CheckCircle class="w-6 h-6 text-green-600" />
@@ -455,7 +362,7 @@ const handleReset = () => {
             <div
               v-if="formData[field as keyof VehicleFormData]"
               class="relative aspect-video rounded-lg overflow-hidden border-2 border-dashed border-gray-300 cursor-pointer hover:border-blue-500 transition-colors"
-              @click="removeImage(field as keyof VehicleFormData)"
+              @click="removeImage(field)"
             >
               <img
                 :src="formData[field as keyof VehicleFormData]"
@@ -469,19 +376,20 @@ const handleReset = () => {
             <div
               v-else
               class="aspect-video rounded-lg border-2 border-dashed border-gray-300 flex flex-col items-center justify-center cursor-pointer hover:border-blue-500 hover:bg-blue-50 transition-all"
-              @click="imageUploadRefs[field as keyof typeof imageUploadRefs].value?.click()"
+              @click="triggerUpload(field)"
             >
               <svg class="w-8 h-8 text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
               </svg>
               <span class="text-sm text-gray-500">{{ label }}</span>
             </div>
+            <p v-if="uploadErrors[field]" class="text-sm text-red-500 mt-1">{{ uploadErrors[field] }}</p>
             <input
-              :ref="(el) => { imageUploadRefs[field as keyof typeof imageUploadRefs].value = el as HTMLInputElement }"
+              :ref="(el) => registerUploadRef(field, el as HTMLInputElement)"
               type="file"
               accept="image/*"
               class="hidden"
-              @change="handleImageUpload(field as keyof VehicleFormData, $event)"
+              @change="(e) => handleImageUpload(field, e)"
             />
           </div>
         </div>

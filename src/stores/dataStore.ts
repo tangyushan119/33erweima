@@ -27,7 +27,7 @@ export interface QrCodeRecord {
 
 export interface OperationLog {
   id: string
-  operationType: 'create' | 'approve' | 'reject' | 'batch_approve' | 'batch_reject' | 'scan' | 'toggle_qrcode' | 'create_vehicle' | 'update_vehicle' | 'delete_vehicle' | 'submit_vehicle' | 'create_equipment' | 'update_equipment' | 'delete_equipment'
+  operationType: 'create' | 'approve' | 'reject' | 'batch_approve' | 'batch_reject' | 'scan' | 'toggle_qrcode' | 'create_vehicle' | 'update_vehicle' | 'delete_vehicle' | 'submit_vehicle' | 'create_equipment' | 'update_equipment' | 'delete_equipment' | 'create_personnel' | 'update_personnel' | 'delete_personnel' | 'create_firehydrant' | 'update_firehydrant' | 'delete_firehydrant'
   targetId: string
   targetName: string
   detail: string
@@ -162,6 +162,150 @@ function saveToStorage<T>(key: string, value: T): void {
   } catch {
     console.warn(`Failed to save to localStorage: ${key}`)
   }
+}
+
+const formatDateTime = (): string => {
+  return new Date().toLocaleString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  }).replace(/\//g, '-')
+}
+
+interface AuditableRecord {
+  id: string
+  status: 'pending' | 'approved' | 'rejected'
+  activeStatus?: 'active' | 'inactive'
+  updateTime?: string
+  rejectReason?: string
+}
+
+interface AuditableRecordWithName extends AuditableRecord {
+  [nameField: string]: unknown
+}
+
+function createNewRecord<T extends AuditableRecord>(
+  baseRecord: Omit<T, 'id' | 'createTime' | 'updateTime' | 'status' | 'activeStatus'>,
+  idPrefix: string
+): T {
+  const now = formatDateTime()
+  return {
+    ...baseRecord,
+    id: `${idPrefix}${Date.now()}`,
+    status: 'pending',
+    activeStatus: 'active',
+    createTime: now,
+    updateTime: now,
+  } as T
+}
+
+function approveRecordInternal<T extends AuditableRecordWithName>(
+  pendingList: T[],
+  approvedList: T[],
+  id: string,
+  nameField: keyof T
+): T | null {
+  const index = pendingList.findIndex(r => r.id === id)
+  if (index === -1) return null
+
+  const record = pendingList.splice(index, 1)[0]
+  record.status = 'approved'
+  approvedList.unshift(record)
+  return record
+}
+
+function rejectRecordInternal<T extends AuditableRecordWithName>(
+  pendingList: T[],
+  rejectedList: T[],
+  id: string,
+  nameField: keyof T,
+  reason?: string
+): T | null {
+  const index = pendingList.findIndex(r => r.id === id)
+  if (index === -1) return null
+
+  const record = pendingList.splice(index, 1)[0]
+  record.status = 'rejected'
+  record.rejectReason = reason
+  rejectedList.unshift(record)
+  return record
+}
+
+function updateRecordInternal<T extends AuditableRecordWithName>(
+  pendingList: T[],
+  rejectedList: T[],
+  id: string,
+  updates: Partial<Omit<T, 'id' | 'createTime' | 'status' | 'activeStatus'>>
+): T | null {
+  const pendingIndex = pendingList.findIndex(r => r.id === id)
+  if (pendingIndex !== -1) {
+    pendingList[pendingIndex] = {
+      ...pendingList[pendingIndex],
+      ...updates,
+      updateTime: formatDateTime(),
+    }
+    return pendingList[pendingIndex]
+  }
+
+  const rejectedIndex = rejectedList.findIndex(r => r.id === id)
+  if (rejectedIndex !== -1) {
+    rejectedList[rejectedIndex] = {
+      ...rejectedList[rejectedIndex],
+      ...updates,
+      updateTime: formatDateTime(),
+      status: 'pending',
+      rejectReason: undefined,
+    }
+    const record = rejectedList.splice(rejectedIndex, 1)[0]
+    pendingList.unshift(record)
+    return record
+  }
+
+  return null
+}
+
+function deleteRecordInternal<T extends AuditableRecordWithName>(
+  pendingList: T[],
+  approvedList: T[],
+  rejectedList: T[],
+  id: string
+): T | null {
+  const pendingIndex = pendingList.findIndex(r => r.id === id)
+  if (pendingIndex !== -1) return pendingList.splice(pendingIndex, 1)[0]
+
+  const approvedIndex = approvedList.findIndex(r => r.id === id)
+  if (approvedIndex !== -1) return approvedList.splice(approvedIndex, 1)[0]
+
+  const rejectedIndex = rejectedList.findIndex(r => r.id === id)
+  if (rejectedIndex !== -1) return rejectedList.splice(rejectedIndex, 1)[0]
+
+  return null
+}
+
+function toggleActiveStatusInternal<T extends AuditableRecord>(
+  approvedList: T[],
+  id: string
+): T | null {
+  const record = approvedList.find(r => r.id === id)
+  if (!record || !record.activeStatus) return null
+
+  record.activeStatus = record.activeStatus === 'active' ? 'inactive' : 'active'
+  record.updateTime = formatDateTime()
+  return record
+}
+
+function getRecordById<T>(
+  pendingList: T[],
+  approvedList: T[],
+  rejectedList: T[],
+  id: string
+): T | undefined {
+  return pendingList.find(r => (r as { id: string }).id === id) ||
+         approvedList.find(r => (r as { id: string }).id === id) ||
+         rejectedList.find(r => (r as { id: string }).id === id)
 }
 
 const defaultPendingRecords: UnitRecord[] = [
@@ -426,14 +570,7 @@ export const useDataStore = defineStore('data', () => {
       targetName,
       detail,
       operator: operator.value,
-      createTime: new Date().toLocaleString('zh-CN', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-      }).replace(/\//g, '-'),
+      createTime: formatDateTime(),
     }
     operationLogs.value.unshift(log)
     if (operationLogs.value.length > 1000) {
@@ -466,14 +603,7 @@ export const useDataStore = defineStore('data', () => {
       ...record,
       id: Date.now().toString(),
       qrCodeId: '',
-      createTime: new Date().toLocaleString('zh-CN', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-      }).replace(/\//g, '-'),
+      createTime: formatDateTime(),
       status: 'pending',
     }
     pendingRecords.value.unshift(newRecord)
@@ -486,14 +616,7 @@ export const useDataStore = defineStore('data', () => {
     const newRecord: QrCodeRecord = {
       ...record,
       id: 'q' + Date.now(),
-      createTime: new Date().toLocaleString('zh-CN', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-      }).replace(/\//g, '-'),
+      createTime: formatDateTime(),
       scanCount: 0,
     }
     qrCodeRecords.value.unshift(newRecord)
@@ -530,41 +653,28 @@ export const useDataStore = defineStore('data', () => {
   }
 
   const approveRecord = (id: string) => {
-    const index = pendingRecords.value.findIndex(r => r.id === id)
-    if (index !== -1) {
-      const record = pendingRecords.value.splice(index, 1)[0]
-      record.status = 'approved'
-      approvedRecords.value.unshift(record)
+    const result = approveRecordInternal(pendingRecords.value, approvedRecords.value, id, 'unitName')
+    if (result) {
       saveRecords()
-      addOperationLog('approve', record.id, record.unitName, `审核通过：${record.unitName}`)
-      return record
+      addOperationLog('approve', result.id, result.unitName, `审核通过：${result.unitName}`)
     }
-    return null
+    return result
   }
 
   const rejectRecord = (id: string) => {
-    const index = pendingRecords.value.findIndex(r => r.id === id)
-    if (index !== -1) {
-      const record = pendingRecords.value.splice(index, 1)[0]
-      record.status = 'rejected'
-      rejectedRecords.value.unshift(record)
+    const result = rejectRecordInternal(pendingRecords.value, rejectedRecords.value, id, 'unitName')
+    if (result) {
       saveRecords()
-      addOperationLog('reject', record.id, record.unitName, `审核驳回：${record.unitName}`)
-      return record
+      addOperationLog('reject', result.id, result.unitName, `审核驳回：${result.unitName}`)
     }
-    return null
+    return result
   }
 
   const batchApproveRecords = (ids: string[]) => {
     const approved: UnitRecord[] = []
     ids.forEach(id => {
-      const index = pendingRecords.value.findIndex(r => r.id === id)
-      if (index !== -1) {
-        const record = pendingRecords.value.splice(index, 1)[0]
-        record.status = 'approved'
-        approvedRecords.value.unshift(record)
-        approved.push(record)
-      }
+      const result = approveRecordInternal(pendingRecords.value, approvedRecords.value, id, 'unitName')
+      if (result) approved.push(result)
     })
     saveRecords()
     if (approved.length > 0) {
@@ -577,13 +687,8 @@ export const useDataStore = defineStore('data', () => {
   const batchRejectRecords = (ids: string[]) => {
     const rejected: UnitRecord[] = []
     ids.forEach(id => {
-      const index = pendingRecords.value.findIndex(r => r.id === id)
-      if (index !== -1) {
-        const record = pendingRecords.value.splice(index, 1)[0]
-        record.status = 'rejected'
-        rejectedRecords.value.unshift(record)
-        rejected.push(record)
-      }
+      const result = rejectRecordInternal(pendingRecords.value, rejectedRecords.value, id, 'unitName')
+      if (result) rejected.push(result)
     })
     saveRecords()
     if (rejected.length > 0) {
@@ -599,23 +704,7 @@ export const useDataStore = defineStore('data', () => {
   }
 
   const addVehicleRecord = (record: Omit<VehicleRecord, 'id' | 'createTime' | 'updateTime' | 'status' | 'activeStatus'>) => {
-    const now = new Date().toLocaleString('zh-CN', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-    }).replace(/\//g, '-')
-
-    const newRecord: VehicleRecord = {
-      ...record,
-      id: 'v' + Date.now(),
-      status: 'pending',
-      activeStatus: 'active',
-      createTime: now,
-      updateTime: now,
-    }
+    const newRecord = createNewRecord<VehicleRecord>(record, 'v')
     vehiclePendingRecords.value.unshift(newRecord)
     saveRecords()
     addOperationLog('create_vehicle', newRecord.id, newRecord.plateNumber, `创建车辆记录待审核：${newRecord.plateNumber}`)
@@ -623,155 +712,56 @@ export const useDataStore = defineStore('data', () => {
   }
 
   const updateVehicleRecord = (id: string, record: Partial<Omit<VehicleRecord, 'id' | 'createTime' | 'status' | 'activeStatus'>>) => {
-    const pendingIndex = vehiclePendingRecords.value.findIndex(r => r.id === id)
-    if (pendingIndex !== -1) {
-      const updateTime = new Date().toLocaleString('zh-CN', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-      }).replace(/\//g, '-')
-
-      vehiclePendingRecords.value[pendingIndex] = {
-        ...vehiclePendingRecords.value[pendingIndex],
-        ...record,
-        updateTime,
-      }
+    const result = updateRecordInternal(vehiclePendingRecords.value, vehicleRejectedRecords.value, id, record)
+    if (result) {
       saveRecords()
-      const vehicle = vehiclePendingRecords.value[pendingIndex]
-      addOperationLog('update_vehicle', vehicle.id, vehicle.plateNumber, `更新车辆待审核记录：${vehicle.plateNumber}`)
-      return vehicle
+      addOperationLog('update_vehicle', result.id, result.plateNumber, result.status === 'pending' ? `更新车辆待审核记录：${result.plateNumber}` : `修改驳回车辆并重新提交审核：${result.plateNumber}`)
     }
-
-    const rejectedIndex = vehicleRejectedRecords.value.findIndex(r => r.id === id)
-    if (rejectedIndex !== -1) {
-      const updateTime = new Date().toLocaleString('zh-CN', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-      }).replace(/\//g, '-')
-
-      vehicleRejectedRecords.value[rejectedIndex] = {
-        ...vehicleRejectedRecords.value[rejectedIndex],
-        ...record,
-        updateTime,
-        status: 'pending',
-        rejectReason: undefined,
-      }
-      vehiclePendingRecords.value.unshift(vehicleRejectedRecords.value.splice(rejectedIndex, 1)[0])
-      saveRecords()
-      const vehicle = vehiclePendingRecords.value[0]
-      addOperationLog('update_vehicle', vehicle.id, vehicle.plateNumber, `修改驳回车辆并重新提交审核：${vehicle.plateNumber}`)
-      return vehicle
-    }
-
-    return null
+    return result
   }
 
   const approveVehicleRecord = (id: string) => {
-    const index = vehiclePendingRecords.value.findIndex(r => r.id === id)
-    if (index !== -1) {
-      const record = vehiclePendingRecords.value.splice(index, 1)[0]
-      record.status = 'approved'
-      vehicleApprovedRecords.value.unshift(record)
+    const result = approveRecordInternal(vehiclePendingRecords.value, vehicleApprovedRecords.value, id, 'plateNumber')
+    if (result) {
       saveRecords()
-      addOperationLog('approve', record.id, record.plateNumber, `车辆审核通过：${record.plateNumber}`)
-      return record
+      addOperationLog('approve', result.id, result.plateNumber, `车辆审核通过：${result.plateNumber}`)
     }
-    return null
+    return result
   }
 
   const rejectVehicleRecord = (id: string, reason?: string) => {
-    const index = vehiclePendingRecords.value.findIndex(r => r.id === id)
-    if (index !== -1) {
-      const record = vehiclePendingRecords.value.splice(index, 1)[0]
-      record.status = 'rejected'
-      record.rejectReason = reason
-      vehicleRejectedRecords.value.unshift(record)
+    const result = rejectRecordInternal(vehiclePendingRecords.value, vehicleRejectedRecords.value, id, 'plateNumber', reason)
+    if (result) {
       saveRecords()
-      addOperationLog('reject', record.id, record.plateNumber, `车辆审核驳回：${record.plateNumber}，原因：${reason || '无'}`)
-      return record
+      addOperationLog('reject', result.id, result.plateNumber, `车辆审核驳回：${result.plateNumber}，原因：${reason || '无'}`)
     }
-    return null
+    return result
   }
 
   const deleteVehicleRecord = (id: string) => {
-    const pendingIndex = vehiclePendingRecords.value.findIndex(r => r.id === id)
-    if (pendingIndex !== -1) {
-      const record = vehiclePendingRecords.value.splice(pendingIndex, 1)[0]
+    const result = deleteRecordInternal(vehiclePendingRecords.value, vehicleApprovedRecords.value, vehicleRejectedRecords.value, id)
+    if (result) {
       saveRecords()
-      addOperationLog('delete_vehicle', record.id, record.plateNumber, `删除车辆待审核记录：${record.plateNumber}`)
-      return record
+      addOperationLog('delete_vehicle', result.id, result.plateNumber, `删除车辆记录：${result.plateNumber}`)
     }
-
-    const approvedIndex = vehicleApprovedRecords.value.findIndex(r => r.id === id)
-    if (approvedIndex !== -1) {
-      const record = vehicleApprovedRecords.value.splice(approvedIndex, 1)[0]
-      saveRecords()
-      addOperationLog('delete_vehicle', record.id, record.plateNumber, `删除车辆记录：${record.plateNumber}`)
-      return record
-    }
-
-    const rejectedIndex = vehicleRejectedRecords.value.findIndex(r => r.id === id)
-    if (rejectedIndex !== -1) {
-      const record = vehicleRejectedRecords.value.splice(rejectedIndex, 1)[0]
-      saveRecords()
-      addOperationLog('delete_vehicle', record.id, record.plateNumber, `删除车辆驳回记录：${record.plateNumber}`)
-      return record
-    }
-
-    return null
+    return result
   }
 
   const toggleVehicleActiveStatus = (id: string) => {
-    const record = vehicleApprovedRecords.value.find(r => r.id === id)
-    if (record) {
-      const newStatus = record.activeStatus === 'active' ? 'inactive' : 'active'
-      record.activeStatus = newStatus
-      record.updateTime = new Date().toLocaleString('zh-CN', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-      }).replace(/\//g, '-')
+    const result = toggleActiveStatusInternal(vehicleApprovedRecords.value, id)
+    if (result) {
       saveRecords()
-      addOperationLog('update_vehicle', record.id, record.plateNumber, `车辆启用状态变更为：${newStatus === 'active' ? '启用' : '停用'}`)
-      return record
+      addOperationLog('update_vehicle', result.id, result.plateNumber, `车辆启用状态变更为：${result.activeStatus === 'active' ? '启用' : '停用'}`)
     }
-    return null
+    return result
   }
 
   const getVehicleById = (id: string) => {
-    return vehiclePendingRecords.value.find(r => r.id === id) ||
-           vehicleApprovedRecords.value.find(r => r.id === id) ||
-           vehicleRejectedRecords.value.find(r => r.id === id)
+    return getRecordById(vehiclePendingRecords.value, vehicleApprovedRecords.value, vehicleRejectedRecords.value, id)
   }
 
   const addEquipmentRecord = (record: Omit<EquipmentRecord, 'id' | 'createTime' | 'updateTime' | 'status' | 'activeStatus'>) => {
-    const now = new Date().toLocaleString('zh-CN', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-    }).replace(/\//g, '-')
-
-    const newRecord: EquipmentRecord = {
-      ...record,
-      id: 'e' + Date.now(),
-      status: 'pending',
-      activeStatus: 'active',
-      createTime: now,
-      updateTime: now,
-    }
+    const newRecord = createNewRecord<EquipmentRecord>(record, 'e')
     equipmentPendingRecords.value.unshift(newRecord)
     saveRecords()
     addOperationLog('create_equipment', newRecord.id, newRecord.equipmentName, `创建装备记录待审核：${newRecord.equipmentName}`)
@@ -779,447 +769,166 @@ export const useDataStore = defineStore('data', () => {
   }
 
   const updateEquipmentRecord = (id: string, record: Partial<Omit<EquipmentRecord, 'id' | 'createTime' | 'status' | 'activeStatus'>>) => {
-    const pendingIndex = equipmentPendingRecords.value.findIndex(r => r.id === id)
-    if (pendingIndex !== -1) {
-      const updateTime = new Date().toLocaleString('zh-CN', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-      }).replace(/\//g, '-')
-
-      equipmentPendingRecords.value[pendingIndex] = {
-        ...equipmentPendingRecords.value[pendingIndex],
-        ...record,
-        updateTime,
-      }
+    const result = updateRecordInternal(equipmentPendingRecords.value, equipmentRejectedRecords.value, id, record)
+    if (result) {
       saveRecords()
-      const equipment = equipmentPendingRecords.value[pendingIndex]
-      addOperationLog('update_equipment', equipment.id, equipment.equipmentName, `更新装备待审核记录：${equipment.equipmentName}`)
-      return equipment
+      addOperationLog('update_equipment', result.id, result.equipmentName, result.status === 'pending' ? `更新装备待审核记录：${result.equipmentName}` : `修改驳回装备并重新提交审核：${result.equipmentName}`)
     }
-
-    const rejectedIndex = equipmentRejectedRecords.value.findIndex(r => r.id === id)
-    if (rejectedIndex !== -1) {
-      const updateTime = new Date().toLocaleString('zh-CN', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-      }).replace(/\//g, '-')
-
-      equipmentRejectedRecords.value[rejectedIndex] = {
-        ...equipmentRejectedRecords.value[rejectedIndex],
-        ...record,
-        updateTime,
-        status: 'pending',
-        rejectReason: undefined,
-      }
-      equipmentPendingRecords.value.unshift(equipmentRejectedRecords.value.splice(rejectedIndex, 1)[0])
-      saveRecords()
-      const equipment = equipmentPendingRecords.value[0]
-      addOperationLog('update_equipment', equipment.id, equipment.equipmentName, `修改驳回装备并重新提交审核：${equipment.equipmentName}`)
-      return equipment
-    }
-
-    return null
+    return result
   }
 
   const approveEquipmentRecord = (id: string) => {
-    const index = equipmentPendingRecords.value.findIndex(r => r.id === id)
-    if (index !== -1) {
-      const record = equipmentPendingRecords.value.splice(index, 1)[0]
-      record.status = 'approved'
-      equipmentApprovedRecords.value.unshift(record)
+    const result = approveRecordInternal(equipmentPendingRecords.value, equipmentApprovedRecords.value, id, 'equipmentName')
+    if (result) {
       saveRecords()
-      addOperationLog('approve', record.id, record.equipmentName, `装备审核通过：${record.equipmentName}`)
-      return record
+      addOperationLog('approve', result.id, result.equipmentName, `装备审核通过：${result.equipmentName}`)
     }
-    return null
+    return result
   }
 
   const rejectEquipmentRecord = (id: string, reason?: string) => {
-    const index = equipmentPendingRecords.value.findIndex(r => r.id === id)
-    if (index !== -1) {
-      const record = equipmentPendingRecords.value.splice(index, 1)[0]
-      record.status = 'rejected'
-      record.rejectReason = reason
-      equipmentRejectedRecords.value.unshift(record)
+    const result = rejectRecordInternal(equipmentPendingRecords.value, equipmentRejectedRecords.value, id, 'equipmentName', reason)
+    if (result) {
       saveRecords()
-      addOperationLog('reject', record.id, record.equipmentName, `装备审核驳回：${record.equipmentName}，原因：${reason || '无'}`)
-      return record
+      addOperationLog('reject', result.id, result.equipmentName, `装备审核驳回：${result.equipmentName}，原因：${reason || '无'}`)
     }
-    return null
+    return result
   }
 
   const deleteEquipmentRecord = (id: string) => {
-    const pendingIndex = equipmentPendingRecords.value.findIndex(r => r.id === id)
-    if (pendingIndex !== -1) {
-      const record = equipmentPendingRecords.value.splice(pendingIndex, 1)[0]
+    const result = deleteRecordInternal(equipmentPendingRecords.value, equipmentApprovedRecords.value, equipmentRejectedRecords.value, id)
+    if (result) {
       saveRecords()
-      addOperationLog('delete_equipment', record.id, record.equipmentName, `删除装备待审核记录：${record.equipmentName}`)
-      return record
+      addOperationLog('delete_equipment', result.id, result.equipmentName, `删除装备记录：${result.equipmentName}`)
     }
-
-    const approvedIndex = equipmentApprovedRecords.value.findIndex(r => r.id === id)
-    if (approvedIndex !== -1) {
-      const record = equipmentApprovedRecords.value.splice(approvedIndex, 1)[0]
-      saveRecords()
-      addOperationLog('delete_equipment', record.id, record.equipmentName, `删除装备记录：${record.equipmentName}`)
-      return record
-    }
-
-    const rejectedIndex = equipmentRejectedRecords.value.findIndex(r => r.id === id)
-    if (rejectedIndex !== -1) {
-      const record = equipmentRejectedRecords.value.splice(rejectedIndex, 1)[0]
-      saveRecords()
-      addOperationLog('delete_equipment', record.id, record.equipmentName, `删除装备驳回记录：${record.equipmentName}`)
-      return record
-    }
-
-    return null
+    return result
   }
 
   const toggleEquipmentActiveStatus = (id: string) => {
-    const record = equipmentApprovedRecords.value.find(r => r.id === id)
-    if (record) {
-      const newStatus = record.activeStatus === 'active' ? 'inactive' : 'active'
-      record.activeStatus = newStatus
-      record.updateTime = new Date().toLocaleString('zh-CN', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-      }).replace(/\//g, '-')
+    const result = toggleActiveStatusInternal(equipmentApprovedRecords.value, id)
+    if (result) {
       saveRecords()
-      addOperationLog('update_equipment', record.id, record.equipmentName, `装备启用状态变更为：${newStatus === 'active' ? '启用' : '停用'}`)
-      return record
+      addOperationLog('update_equipment', result.id, result.equipmentName, `装备启用状态变更为：${result.activeStatus === 'active' ? '启用' : '停用'}`)
     }
-    return null
+    return result
   }
 
   const getEquipmentById = (id: string) => {
-    return equipmentPendingRecords.value.find(r => r.id === id) ||
-           equipmentApprovedRecords.value.find(r => r.id === id) ||
-           equipmentRejectedRecords.value.find(r => r.id === id)
+    return getRecordById(equipmentPendingRecords.value, equipmentApprovedRecords.value, equipmentRejectedRecords.value, id)
   }
 
   const addPersonnelRecord = (record: Omit<PersonnelRecord, 'id' | 'createTime' | 'updateTime' | 'status' | 'activeStatus'>) => {
-    const now = new Date().toLocaleString('zh-CN', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-    }).replace(/\//g, '-')
-
-    const newRecord: PersonnelRecord = {
-      ...record,
-      id: 'p' + Date.now(),
-      status: 'pending',
-      activeStatus: 'active',
-      createTime: now,
-      updateTime: now,
-    }
+    const newRecord = createNewRecord<PersonnelRecord>(record, 'p')
     personnelPendingRecords.value.unshift(newRecord)
     saveRecords()
-    addOperationLog('create_equipment', newRecord.id, newRecord.name, `创建人员记录待审核：${newRecord.name}`)
+    addOperationLog('create_personnel', newRecord.id, newRecord.name, `创建人员记录待审核：${newRecord.name}`)
     return newRecord
   }
 
   const updatePersonnelRecord = (id: string, record: Partial<Omit<PersonnelRecord, 'id' | 'createTime' | 'status' | 'activeStatus'>>) => {
-    const pendingIndex = personnelPendingRecords.value.findIndex(r => r.id === id)
-    if (pendingIndex !== -1) {
-      const updateTime = new Date().toLocaleString('zh-CN', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-      }).replace(/\//g, '-')
-
-      personnelPendingRecords.value[pendingIndex] = {
-        ...personnelPendingRecords.value[pendingIndex],
-        ...record,
-        updateTime,
-      }
+    const result = updateRecordInternal(personnelPendingRecords.value, personnelRejectedRecords.value, id, record)
+    if (result) {
       saveRecords()
-      const personnel = personnelPendingRecords.value[pendingIndex]
-      addOperationLog('update_equipment', personnel.id, personnel.name, `更新人员待审核记录：${personnel.name}`)
-      return personnel
+      addOperationLog('update_personnel', result.id, result.name, result.status === 'pending' ? `更新人员待审核记录：${result.name}` : `修改驳回人员并重新提交审核：${result.name}`)
     }
-
-    const rejectedIndex = personnelRejectedRecords.value.findIndex(r => r.id === id)
-    if (rejectedIndex !== -1) {
-      const updateTime = new Date().toLocaleString('zh-CN', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-      }).replace(/\//g, '-')
-
-      personnelRejectedRecords.value[rejectedIndex] = {
-        ...personnelRejectedRecords.value[rejectedIndex],
-        ...record,
-        updateTime,
-        status: 'pending',
-        rejectReason: undefined,
-      }
-      personnelPendingRecords.value.unshift(personnelRejectedRecords.value.splice(rejectedIndex, 1)[0])
-      saveRecords()
-      const personnel = personnelPendingRecords.value[0]
-      addOperationLog('update_equipment', personnel.id, personnel.name, `修改驳回人员并重新提交审核：${personnel.name}`)
-      return personnel
-    }
-
-    return null
+    return result
   }
 
   const approvePersonnelRecord = (id: string) => {
-    const index = personnelPendingRecords.value.findIndex(r => r.id === id)
-    if (index !== -1) {
-      const record = personnelPendingRecords.value.splice(index, 1)[0]
-      record.status = 'approved'
-      personnelApprovedRecords.value.unshift(record)
+    const result = approveRecordInternal(personnelPendingRecords.value, personnelApprovedRecords.value, id, 'name')
+    if (result) {
       saveRecords()
-      addOperationLog('approve', record.id, record.name, `人员审核通过：${record.name}`)
-      return record
+      addOperationLog('approve', result.id, result.name, `人员审核通过：${result.name}`)
     }
-    return null
+    return result
   }
 
   const rejectPersonnelRecord = (id: string, reason?: string) => {
-    const index = personnelPendingRecords.value.findIndex(r => r.id === id)
-    if (index !== -1) {
-      const record = personnelPendingRecords.value.splice(index, 1)[0]
-      record.status = 'rejected'
-      record.rejectReason = reason
-      personnelRejectedRecords.value.unshift(record)
+    const result = rejectRecordInternal(personnelPendingRecords.value, personnelRejectedRecords.value, id, 'name', reason)
+    if (result) {
       saveRecords()
-      addOperationLog('reject', record.id, record.name, `人员审核驳回：${record.name}，原因：${reason || '无'}`)
-      return record
+      addOperationLog('reject', result.id, result.name, `人员审核驳回：${result.name}，原因：${reason || '无'}`)
     }
-    return null
+    return result
   }
 
   const deletePersonnelRecord = (id: string) => {
-    const pendingIndex = personnelPendingRecords.value.findIndex(r => r.id === id)
-    if (pendingIndex !== -1) {
-      const record = personnelPendingRecords.value.splice(pendingIndex, 1)[0]
+    const result = deleteRecordInternal(personnelPendingRecords.value, personnelApprovedRecords.value, personnelRejectedRecords.value, id)
+    if (result) {
       saveRecords()
-      addOperationLog('delete_equipment', record.id, record.name, `删除人员待审核记录：${record.name}`)
-      return record
+      addOperationLog('delete_personnel', result.id, result.name, `删除人员记录：${result.name}`)
     }
-
-    const approvedIndex = personnelApprovedRecords.value.findIndex(r => r.id === id)
-    if (approvedIndex !== -1) {
-      const record = personnelApprovedRecords.value.splice(approvedIndex, 1)[0]
-      saveRecords()
-      addOperationLog('delete_equipment', record.id, record.name, `删除人员记录：${record.name}`)
-      return record
-    }
-
-    const rejectedIndex = personnelRejectedRecords.value.findIndex(r => r.id === id)
-    if (rejectedIndex !== -1) {
-      const record = personnelRejectedRecords.value.splice(rejectedIndex, 1)[0]
-      saveRecords()
-      addOperationLog('delete_equipment', record.id, record.name, `删除人员驳回记录：${record.name}`)
-      return record
-    }
-
-    return null
+    return result
   }
 
   const togglePersonnelActiveStatus = (id: string) => {
-    const record = personnelApprovedRecords.value.find(r => r.id === id)
-    if (record) {
-      const newStatus = record.activeStatus === 'active' ? 'inactive' : 'active'
-      record.activeStatus = newStatus
-      record.updateTime = new Date().toLocaleString('zh-CN', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-      }).replace(/\//g, '-')
+    const result = toggleActiveStatusInternal(personnelApprovedRecords.value, id)
+    if (result) {
       saveRecords()
-      addOperationLog('update_equipment', record.id, record.name, `人员启用状态变更为：${newStatus === 'active' ? '启用' : '停用'}`)
-      return record
+      addOperationLog('update_personnel', result.id, result.name, `人员启用状态变更为：${result.activeStatus === 'active' ? '启用' : '停用'}`)
     }
-    return null
+    return result
   }
 
   const getPersonnelById = (id: string) => {
-    return personnelPendingRecords.value.find(r => r.id === id) ||
-           personnelApprovedRecords.value.find(r => r.id === id) ||
-           personnelRejectedRecords.value.find(r => r.id === id)
+    return getRecordById(personnelPendingRecords.value, personnelApprovedRecords.value, personnelRejectedRecords.value, id)
   }
 
   const addFireHydrantRecord = (record: Omit<FireHydrantRecord, 'id' | 'createTime' | 'updateTime' | 'status' | 'activeStatus'>) => {
-    const now = new Date().toLocaleString('zh-CN', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-    }).replace(/\//g, '-')
-
-    const newRecord: FireHydrantRecord = {
-      ...record,
-      id: 'fh' + Date.now(),
-      status: 'pending',
-      activeStatus: 'active',
-      createTime: now,
-      updateTime: now,
-    }
+    const newRecord = createNewRecord<FireHydrantRecord>(record, 'fh')
     fireHydrantPendingRecords.value.unshift(newRecord)
     saveRecords()
-    addOperationLog('create_equipment', newRecord.id, newRecord.hydrantName, `创建消火栓记录待审核：${newRecord.hydrantName}`)
+    addOperationLog('create_firehydrant', newRecord.id, newRecord.hydrantName, `创建消火栓记录待审核：${newRecord.hydrantName}`)
     return newRecord
   }
 
   const updateFireHydrantRecord = (id: string, record: Partial<Omit<FireHydrantRecord, 'id' | 'createTime' | 'status' | 'activeStatus'>>) => {
-    const pendingIndex = fireHydrantPendingRecords.value.findIndex(r => r.id === id)
-    if (pendingIndex !== -1) {
-      const updateTime = new Date().toLocaleString('zh-CN', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-      }).replace(/\//g, '-')
-
-      fireHydrantPendingRecords.value[pendingIndex] = {
-        ...fireHydrantPendingRecords.value[pendingIndex],
-        ...record,
-        updateTime,
-      }
+    const result = updateRecordInternal(fireHydrantPendingRecords.value, fireHydrantRejectedRecords.value, id, record)
+    if (result) {
       saveRecords()
-      const hydrant = fireHydrantPendingRecords.value[pendingIndex]
-      addOperationLog('update_equipment', hydrant.id, hydrant.hydrantName, `更新消火栓待审核记录：${hydrant.hydrantName}`)
-      return hydrant
+      addOperationLog('update_firehydrant', result.id, result.hydrantName, result.status === 'pending' ? `更新消火栓待审核记录：${result.hydrantName}` : `修改驳回消火栓并重新提交审核：${result.hydrantName}`)
     }
-
-    const rejectedIndex = fireHydrantRejectedRecords.value.findIndex(r => r.id === id)
-    if (rejectedIndex !== -1) {
-      const updateTime = new Date().toLocaleString('zh-CN', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-      }).replace(/\//g, '-')
-
-      fireHydrantRejectedRecords.value[rejectedIndex] = {
-        ...fireHydrantRejectedRecords.value[rejectedIndex],
-        ...record,
-        updateTime,
-        status: 'pending',
-        rejectReason: undefined,
-      }
-      fireHydrantPendingRecords.value.unshift(fireHydrantRejectedRecords.value.splice(rejectedIndex, 1)[0])
-      saveRecords()
-      const hydrant = fireHydrantPendingRecords.value[0]
-      addOperationLog('update_equipment', hydrant.id, hydrant.hydrantName, `修改驳回消火栓并重新提交审核：${hydrant.hydrantName}`)
-      return hydrant
-    }
-
-    return null
+    return result
   }
 
   const approveFireHydrantRecord = (id: string) => {
-    const index = fireHydrantPendingRecords.value.findIndex(r => r.id === id)
-    if (index !== -1) {
-      const record = fireHydrantPendingRecords.value.splice(index, 1)[0]
-      record.status = 'approved'
-      fireHydrantApprovedRecords.value.unshift(record)
+    const result = approveRecordInternal(fireHydrantPendingRecords.value, fireHydrantApprovedRecords.value, id, 'hydrantName')
+    if (result) {
       saveRecords()
-      addOperationLog('approve', record.id, record.hydrantName, `消火栓审核通过：${record.hydrantName}`)
-      return record
+      addOperationLog('approve', result.id, result.hydrantName, `消火栓审核通过：${result.hydrantName}`)
     }
-    return null
+    return result
   }
 
   const rejectFireHydrantRecord = (id: string, reason?: string) => {
-    const index = fireHydrantPendingRecords.value.findIndex(r => r.id === id)
-    if (index !== -1) {
-      const record = fireHydrantPendingRecords.value.splice(index, 1)[0]
-      record.status = 'rejected'
-      record.rejectReason = reason
-      fireHydrantRejectedRecords.value.unshift(record)
+    const result = rejectRecordInternal(fireHydrantPendingRecords.value, fireHydrantRejectedRecords.value, id, 'hydrantName', reason)
+    if (result) {
       saveRecords()
-      addOperationLog('reject', record.id, record.hydrantName, `消火栓审核驳回：${record.hydrantName}，原因：${reason || '无'}`)
-      return record
+      addOperationLog('reject', result.id, result.hydrantName, `消火栓审核驳回：${result.hydrantName}，原因：${reason || '无'}`)
     }
-    return null
+    return result
   }
 
   const deleteFireHydrantRecord = (id: string) => {
-    const pendingIndex = fireHydrantPendingRecords.value.findIndex(r => r.id === id)
-    if (pendingIndex !== -1) {
-      const record = fireHydrantPendingRecords.value.splice(pendingIndex, 1)[0]
+    const result = deleteRecordInternal(fireHydrantPendingRecords.value, fireHydrantApprovedRecords.value, fireHydrantRejectedRecords.value, id)
+    if (result) {
       saveRecords()
-      addOperationLog('delete_equipment', record.id, record.hydrantName, `删除消火栓待审核记录：${record.hydrantName}`)
-      return record
+      addOperationLog('delete_firehydrant', result.id, result.hydrantName, `删除消火栓记录：${result.hydrantName}`)
     }
-
-    const approvedIndex = fireHydrantApprovedRecords.value.findIndex(r => r.id === id)
-    if (approvedIndex !== -1) {
-      const record = fireHydrantApprovedRecords.value.splice(approvedIndex, 1)[0]
-      saveRecords()
-      addOperationLog('delete_equipment', record.id, record.hydrantName, `删除消火栓记录：${record.hydrantName}`)
-      return record
-    }
-
-    const rejectedIndex = fireHydrantRejectedRecords.value.findIndex(r => r.id === id)
-    if (rejectedIndex !== -1) {
-      const record = fireHydrantRejectedRecords.value.splice(rejectedIndex, 1)[0]
-      saveRecords()
-      addOperationLog('delete_equipment', record.id, record.hydrantName, `删除消火栓驳回记录：${record.hydrantName}`)
-      return record
-    }
-
-    return null
+    return result
   }
 
   const toggleFireHydrantActiveStatus = (id: string) => {
-    const record = fireHydrantApprovedRecords.value.find(r => r.id === id)
-    if (record) {
-      const newStatus = record.activeStatus === 'active' ? 'inactive' : 'active'
-      record.activeStatus = newStatus
-      record.updateTime = new Date().toLocaleString('zh-CN', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-      }).replace(/\//g, '-')
+    const result = toggleActiveStatusInternal(fireHydrantApprovedRecords.value, id)
+    if (result) {
       saveRecords()
-      addOperationLog('update_equipment', record.id, record.hydrantName, `消火栓启用状态变更为：${newStatus === 'active' ? '启用' : '停用'}`)
-      return record
+      addOperationLog('update_firehydrant', result.id, result.hydrantName, `消火栓启用状态变更为：${result.activeStatus === 'active' ? '启用' : '停用'}`)
     }
-    return null
+    return result
   }
 
   const getFireHydrantById = (id: string) => {
-    return fireHydrantPendingRecords.value.find(r => r.id === id) ||
-           fireHydrantApprovedRecords.value.find(r => r.id === id) ||
-           fireHydrantRejectedRecords.value.find(r => r.id === id)
+    return getRecordById(fireHydrantPendingRecords.value, fireHydrantApprovedRecords.value, fireHydrantRejectedRecords.value, id)
   }
 
   return {

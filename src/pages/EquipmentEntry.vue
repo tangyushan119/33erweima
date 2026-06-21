@@ -1,117 +1,43 @@
 ﻿<script setup lang="ts">
-import { ref, computed } from 'vue'
 import { Wrench, Info, Edit2, Trash2, Eye, EyeOff } from 'lucide-vue-next'
 import EquipmentForm from '@/components/EquipmentForm.vue'
 import { useDataStore, type EquipmentRecord } from '@/stores/dataStore'
-
-interface EquipmentFormData {
-  equipmentName: string
-  equipmentCode: string
-  equipmentType: string
-  specification: string
-  manufacturer: string
-  purchaseDate: string
-  price: string
-  unitId: string
-  unitName: string
-  userName: string
-  userPhone: string
-  location: string
-  overallImage?: string
-  overallImageId?: string
-  nameplateImage?: string
-  nameplateImageId?: string
-}
+import { useRecordManagement } from '@/composables/useRecordManagement'
 
 const dataStore = useDataStore()
-const searchKeyword = ref('')
-const editingEquipment = ref<EquipmentRecord | null>(null)
-const activeTab = ref<'pending' | 'approved' | 'rejected'>('pending')
 
-const currentRecords = computed(() => {
-  switch (activeTab.value) {
-    case 'pending':
-      return dataStore.equipmentPendingRecords
-    case 'approved':
-      return dataStore.equipmentApprovedRecords
-    case 'rejected':
-      return dataStore.equipmentRejectedRecords
-    default:
-      return []
-  }
+const {
+  searchKeyword,
+  editingRecord,
+  activeTab,
+  filteredRecords,
+  handleSubmit,
+  handleSave,
+  handleEdit,
+  handleDelete,
+  handleToggleStatus,
+  handleReset,
+  getStatusText,
+  getStatusClass,
+} = useRecordManagement<EquipmentRecord>({
+  getPendingRecords: () => dataStore.equipmentPendingRecords,
+  getApprovedRecords: () => dataStore.equipmentApprovedRecords,
+  getRejectedRecords: () => dataStore.equipmentRejectedRecords,
+  addRecord: (data) => dataStore.addEquipmentRecord(data as Omit<EquipmentRecord, 'id' | 'createTime' | 'updateTime' | 'status' | 'activeStatus'>),
+  updateRecord: (id, data) => dataStore.updateEquipmentRecord(id, data as Partial<Omit<EquipmentRecord, 'id' | 'createTime' | 'status' | 'activeStatus'>>),
+  deleteRecord: (id) => dataStore.deleteEquipmentRecord(id),
+  toggleActiveStatus: (id) => dataStore.toggleEquipmentActiveStatus(id),
+  searchFields: (record) => [
+    record.equipmentName,
+    record.equipmentCode,
+    record.equipmentType,
+    record.userName,
+    record.unitName,
+  ],
 })
 
-const filteredEquipments = computed(() => {
-  let equipments = currentRecords.value
-  
-  if (searchKeyword.value) {
-    const keyword = searchKeyword.value.toLowerCase()
-    equipments = equipments.filter(e =>
-      e.equipmentName.toLowerCase().includes(keyword) ||
-      e.equipmentCode.toLowerCase().includes(keyword) ||
-      e.equipmentType.toLowerCase().includes(keyword) ||
-      e.userName.toLowerCase().includes(keyword) ||
-      e.unitName.toLowerCase().includes(keyword)
-    )
-  }
-  
-  return equipments
-})
-
-const handleSubmit = (data: EquipmentFormData) => {
-  if (editingEquipment.value) {
-    dataStore.updateEquipmentRecord(editingEquipment.value.id, data)
-    editingEquipment.value = null
-  } else {
-    dataStore.addEquipmentRecord(data)
-  }
-}
-
-const handleSave = (data: EquipmentFormData) => {
-  if (editingEquipment.value) {
-    dataStore.updateEquipmentRecord(editingEquipment.value.id, data)
-    alert('草稿已保存')
-  } else {
-    dataStore.addEquipmentRecord(data)
-    alert('草稿已保存')
-  }
-}
-
-const handleEdit = (equipment: EquipmentRecord) => {
-  editingEquipment.value = equipment
-}
-
-const handleDelete = (id: string) => {
-  if (confirm('确定要删除这条装备记录吗？')) {
-    dataStore.deleteEquipmentRecord(id)
-  }
-}
-
-const handleToggleStatus = (id: string) => {
-  dataStore.toggleEquipmentActiveStatus(id)
-}
-
-const handleReset = () => {
-  editingEquipment.value = null
-}
-
-const getStatusText = (status: EquipmentRecord['status']) => {
-  switch (status) {
-    case 'pending': return '待审核'
-    case 'approved': return '已通过'
-    case 'rejected': return '已驳回'
-    default: return ''
-  }
-}
-
-const getStatusClass = (status: EquipmentRecord['status']) => {
-  switch (status) {
-    case 'pending': return 'bg-yellow-100 text-yellow-700'
-    case 'approved': return 'bg-green-100 text-green-700'
-    case 'rejected': return 'bg-red-100 text-red-700'
-    default: return 'bg-gray-100 text-gray-600'
-  }
-}
+const editingEquipment = editingRecord
+const filteredEquipments = filteredRecords
 </script>
 
 <template>

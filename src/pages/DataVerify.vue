@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { ClipboardCheck, CheckCircle, XCircle, Search, Filter, Clock, User, MapPin, CheckSquare, Square, Download, AlertCircle, Car, Building2, Wrench } from 'lucide-vue-next'
-import { useDataStore, type VehicleRecord, type EquipmentRecord } from '@/stores/dataStore'
+import { ClipboardCheck, CheckCircle, XCircle, Search, Filter, Clock, User, MapPin, CheckSquare, Square, Download, AlertCircle, Car, Building2, Wrench, Users, Droplets } from 'lucide-vue-next'
+import { useDataStore, type VehicleRecord, type EquipmentRecord, type PersonnelRecord, type FireHydrantRecord, type UnitRecord } from '@/stores/dataStore'
 import { exportToExcel, exportToCsv, validateExportData, type ExportFieldConfig, type ExportValidationResult } from '@/lib/export'
+
+type RecordType = 'vehicle' | 'equipment' | 'personnel' | 'fireHydrant' | 'unit'
+type AuditRecord = VehicleRecord | EquipmentRecord | PersonnelRecord | FireHydrantRecord | UnitRecord
 
 const searchKeyword = ref('')
 const filterStatus = ref('all')
@@ -13,45 +16,6 @@ const showExportModal = ref(false)
 const validationResult = ref<ExportValidationResult | null>(null)
 
 const dataStore = useDataStore()
-
-interface AuditRecord extends Record<string, unknown> {
-  id: string
-  status: 'pending' | 'approved' | 'rejected'
-  recordType?: 'vehicle' | 'unit' | 'equipment'
-  unitName?: string
-  plateNumber?: string
-  creditCode?: string
-  vin?: string
-  contactName?: string
-  contactPhone?: string
-  ownerName?: string
-  ownerPhone?: string
-  address?: string
-  vehicleType?: string
-  vehicleBrand?: string
-  vehicleModel?: string
-  equipmentName?: string
-  equipmentCode?: string
-  equipmentType?: string
-  specification?: string
-  manufacturer?: string
-  userName?: string
-  userPhone?: string
-  location?: string
-  createTime?: string
-}
-
-const allRecords = computed((): AuditRecord[] => [
-  ...dataStore.pendingRecords.map(r => ({ ...r, recordType: 'unit' as const })),
-  ...dataStore.approvedRecords.map(r => ({ ...r, recordType: 'unit' as const })),
-  ...dataStore.rejectedRecords.map(r => ({ ...r, recordType: 'unit' as const })),
-  ...dataStore.vehiclePendingRecords.map(r => ({ ...r, recordType: 'vehicle' as const })),
-  ...dataStore.vehicleApprovedRecords.map(r => ({ ...r, recordType: 'vehicle' as const })),
-  ...dataStore.vehicleRejectedRecords.map(r => ({ ...r, recordType: 'vehicle' as const })),
-  ...dataStore.equipmentPendingRecords.map(r => ({ ...r, recordType: 'equipment' as const })),
-  ...dataStore.equipmentApprovedRecords.map(r => ({ ...r, recordType: 'equipment' as const })),
-  ...dataStore.equipmentRejectedRecords.map(r => ({ ...r, recordType: 'equipment' as const })),
-])
 
 const statusOptions = [
   { value: 'all', label: '全部' },
@@ -65,45 +29,151 @@ const typeOptions = [
   { value: 'unit', label: '单位' },
   { value: 'vehicle', label: '车辆' },
   { value: 'equipment', label: '装备' },
+  { value: 'personnel', label: '人员' },
+  { value: 'fireHydrant', label: '消火栓' },
 ]
+
+const getRecordType = (record: AuditRecord): RecordType => {
+  if ('plateNumber' in record) return 'vehicle'
+  if ('equipmentName' in record) return 'equipment'
+  if ('name' in record && 'idCard' in record) return 'personnel'
+  if ('hydrantName' in record) return 'fireHydrant'
+  return 'unit'
+}
+
+const getRecordTypeName = (type: RecordType) => {
+  const names: Record<RecordType, string> = {
+    vehicle: '车辆',
+    equipment: '装备',
+    personnel: '人员',
+    fireHydrant: '消火栓',
+    unit: '单位',
+  }
+  return names[type]
+}
+
+const getRecordTypeIcon = (type: RecordType) => {
+  const icons = {
+    vehicle: Car,
+    equipment: Wrench,
+    personnel: Users,
+    fireHydrant: Droplets,
+    unit: Building2,
+  }
+  return icons[type]
+}
+
+const getRecordTypeColor = (type: RecordType) => {
+  const colors = {
+    vehicle: 'text-green-500',
+    equipment: 'text-purple-500',
+    personnel: 'text-blue-500',
+    fireHydrant: 'text-red-500',
+    unit: 'text-blue-500',
+  }
+  return colors[type]
+}
+
+const getRecordName = (record: AuditRecord) => {
+  if ('plateNumber' in record) return record.plateNumber
+  if ('equipmentName' in record) return record.equipmentName
+  if ('name' in record && 'idCard' in record) return record.name
+  if ('hydrantName' in record) return record.hydrantName
+  if ('unitName' in record) return record.unitName
+  return ''
+}
+
+const getRecordIdentifier = (record: AuditRecord) => {
+  if ('vin' in record) return record.vin
+  if ('equipmentCode' in record) return record.equipmentCode
+  if ('idCard' in record) return record.idCard
+  if ('hydrantCode' in record) return record.hydrantCode
+  if ('creditCode' in record) return record.creditCode
+  return ''
+}
+
+const getRecordContact = (record: AuditRecord) => {
+  if ('ownerName' in record) return record.ownerName
+  if ('userName' in record) return record.userName
+  if ('name' in record && 'idCard' in record) return record.name
+  if ('inspector' in record) return record.inspector
+  if ('contactName' in record) return record.contactName
+  return ''
+}
+
+const getRecordContactPhone = (record: AuditRecord) => {
+  if ('ownerPhone' in record) return record.ownerPhone
+  if ('userPhone' in record) return record.userPhone
+  if ('phone' in record && 'idCard' in record) return record.phone
+  if ('inspectorPhone' in record) return record.inspectorPhone
+  if ('contactPhone' in record) return record.contactPhone
+  return ''
+}
+
+const getRecordLocation = (record: AuditRecord) => {
+  if ('vehicleType' in record) return `${record.vehicleType} ${record.vehicleBrand} ${record.vehicleModel}`
+  if ('equipmentType' in record) return `${record.equipmentType} ${record.specification}`
+  if ('hydrantType' in record) return record.location
+  if ('address' in record) return record.address
+  if ('department' in record) return `${record.department} ${record.position}`
+  return ''
+}
+
+const allRecords = computed((): (AuditRecord & { recordType: RecordType })[] => [
+  ...dataStore.pendingRecords.map(r => ({ ...r, recordType: 'unit' as const })),
+  ...dataStore.approvedRecords.map(r => ({ ...r, recordType: 'unit' as const })),
+  ...dataStore.rejectedRecords.map(r => ({ ...r, recordType: 'unit' as const })),
+  ...dataStore.vehiclePendingRecords.map(r => ({ ...r, recordType: 'vehicle' as const })),
+  ...dataStore.vehicleApprovedRecords.map(r => ({ ...r, recordType: 'vehicle' as const })),
+  ...dataStore.vehicleRejectedRecords.map(r => ({ ...r, recordType: 'vehicle' as const })),
+  ...dataStore.equipmentPendingRecords.map(r => ({ ...r, recordType: 'equipment' as const })),
+  ...dataStore.equipmentApprovedRecords.map(r => ({ ...r, recordType: 'equipment' as const })),
+  ...dataStore.equipmentRejectedRecords.map(r => ({ ...r, recordType: 'equipment' as const })),
+  ...dataStore.personnelPendingRecords.map(r => ({ ...r, recordType: 'personnel' as const })),
+  ...dataStore.personnelApprovedRecords.map(r => ({ ...r, recordType: 'personnel' as const })),
+  ...dataStore.personnelRejectedRecords.map(r => ({ ...r, recordType: 'personnel' as const })),
+  ...dataStore.fireHydrantPendingRecords.map(r => ({ ...r, recordType: 'fireHydrant' as const })),
+  ...dataStore.fireHydrantApprovedRecords.map(r => ({ ...r, recordType: 'fireHydrant' as const })),
+  ...dataStore.fireHydrantRejectedRecords.map(r => ({ ...r, recordType: 'fireHydrant' as const })),
+])
 
 const filteredRecords = computed(() => {
   let result = allRecords.value
-  
+
   if (filterStatus.value !== 'all') {
     result = result.filter(record => record.status === filterStatus.value)
   }
-  
+
   if (filterType.value !== 'all') {
     result = result.filter(record => record.recordType === filterType.value)
   }
-  
+
   if (searchKeyword.value) {
     const keyword = searchKeyword.value.toLowerCase()
     result = result.filter(record => {
-      if (record.recordType === 'vehicle') {
-        return record.plateNumber?.toLowerCase().includes(keyword) ||
-               record.vehicleBrand?.toLowerCase().includes(keyword) ||
-               record.ownerName?.toLowerCase().includes(keyword) ||
-               record.unitName?.toLowerCase().includes(keyword)
-      } else if (record.recordType === 'equipment') {
-        return record.equipmentName?.toLowerCase().includes(keyword) ||
-               record.equipmentCode?.toLowerCase().includes(keyword) ||
-               record.userName?.toLowerCase().includes(keyword) ||
-               record.unitName?.toLowerCase().includes(keyword)
-      } else {
-        return record.unitName?.toLowerCase().includes(keyword) ||
-               record.contactName?.toLowerCase().includes(keyword) ||
-               record.creditCode?.toLowerCase().includes(keyword)
-      }
+      const name = getRecordName(record).toLowerCase()
+      const identifier = getRecordIdentifier(record).toLowerCase()
+      const contact = getRecordContact(record).toLowerCase()
+      const location = getRecordLocation(record).toLowerCase()
+      const unitName = 'unitName' in record ? record.unitName.toLowerCase() : ''
+
+      return name.includes(keyword) ||
+             identifier.includes(keyword) ||
+             contact.includes(keyword) ||
+             location.includes(keyword) ||
+             unitName.includes(keyword)
     })
   }
-  
+
   return result
 })
 
 const pendingCount = computed(() => 
-  dataStore.pendingRecords.length + dataStore.vehiclePendingRecords.length + dataStore.equipmentPendingRecords.length
+  dataStore.pendingRecords.length + 
+  dataStore.vehiclePendingRecords.length + 
+  dataStore.equipmentPendingRecords.length +
+  dataStore.personnelPendingRecords.length +
+  dataStore.fireHydrantPendingRecords.length
 )
 
 const pendingRecords = computed(() => {
@@ -115,33 +185,51 @@ const isAllSelected = computed(() => {
          pendingRecords.value.every(r => selectedIds.value.includes(r.id))
 })
 
-const handleSearch = () => {}
-
 const handleFilterChange = () => {
   selectedIds.value = []
 }
 
-const handleApprove = (id: string, recordType: 'unit' | 'vehicle' | 'equipment') => {
-  if (recordType === 'vehicle') {
-    dataStore.approveVehicleRecord(id)
-  } else if (recordType === 'equipment') {
-    dataStore.approveEquipmentRecord(id)
-  } else {
-    dataStore.approveRecord(id)
+const approveRecord = (id: string, recordType: RecordType) => {
+  switch (recordType) {
+    case 'vehicle':
+      dataStore.approveVehicleRecord(id)
+      break
+    case 'equipment':
+      dataStore.approveEquipmentRecord(id)
+      break
+    case 'personnel':
+      dataStore.approvePersonnelRecord(id)
+      break
+    case 'fireHydrant':
+      dataStore.approveFireHydrantRecord(id)
+      break
+    case 'unit':
+      dataStore.approveRecord(id)
+      break
   }
   selectedIds.value = selectedIds.value.filter(i => i !== id)
 }
 
-const handleReject = (id: string, recordType: 'unit' | 'vehicle' | 'equipment') => {
+const rejectRecord = (id: string, recordType: RecordType) => {
   const reason = prompt('请输入驳回原因：')
-  if (reason !== null) {
-    if (recordType === 'vehicle') {
+  if (reason === null) return
+
+  switch (recordType) {
+    case 'vehicle':
       dataStore.rejectVehicleRecord(id, reason)
-    } else if (recordType === 'equipment') {
+      break
+    case 'equipment':
       dataStore.rejectEquipmentRecord(id, reason)
-    } else {
+      break
+    case 'personnel':
+      dataStore.rejectPersonnelRecord(id, reason)
+      break
+    case 'fireHydrant':
+      dataStore.rejectFireHydrantRecord(id, reason)
+      break
+    case 'unit':
       dataStore.rejectRecord(id)
-    }
+      break
   }
   selectedIds.value = selectedIds.value.filter(i => i !== id)
 }
@@ -165,30 +253,30 @@ const handleSelectOne = (id: string) => {
 
 const handleBatchApprove = () => {
   if (selectedIds.value.length === 0) return
-  const unitIds: string[] = []
-  const vehicleIds: string[] = []
-  const equipmentIds: string[] = []
-  
+
+  const typeGroups: Record<RecordType, string[]> = {
+    vehicle: [],
+    equipment: [],
+    personnel: [],
+    fireHydrant: [],
+    unit: [],
+  }
+
   pendingRecords.value.forEach(r => {
-    if (r.recordType === 'vehicle') {
-      vehicleIds.push(r.id)
-    } else if (r.recordType === 'equipment') {
-      equipmentIds.push(r.id)
-    } else {
-      unitIds.push(r.id)
+    if (selectedIds.value.includes(r.id)) {
+      typeGroups[r.recordType].push(r.id)
     }
   })
+
+  typeGroups.vehicle.forEach(id => dataStore.approveVehicleRecord(id))
+  typeGroups.equipment.forEach(id => dataStore.approveEquipmentRecord(id))
+  typeGroups.personnel.forEach(id => dataStore.approvePersonnelRecord(id))
+  typeGroups.fireHydrant.forEach(id => dataStore.approveFireHydrantRecord(id))
   
-  if (unitIds.length > 0) {
-    dataStore.batchApproveRecords(unitIds)
+  if (typeGroups.unit.length > 0) {
+    dataStore.batchApproveRecords(typeGroups.unit)
   }
-  if (vehicleIds.length > 0) {
-    vehicleIds.forEach(id => dataStore.approveVehicleRecord(id))
-  }
-  if (equipmentIds.length > 0) {
-    equipmentIds.forEach(id => dataStore.approveEquipmentRecord(id))
-  }
-  
+
   selectedIds.value = []
 }
 
@@ -196,31 +284,30 @@ const handleBatchReject = () => {
   if (selectedIds.value.length === 0) return
   const reason = prompt('请输入驳回原因：')
   if (reason === null) return
-  
-  const unitIds: string[] = []
-  const vehicleIds: string[] = []
-  const equipmentIds: string[] = []
-  
+
+  const typeGroups: Record<RecordType, string[]> = {
+    vehicle: [],
+    equipment: [],
+    personnel: [],
+    fireHydrant: [],
+    unit: [],
+  }
+
   pendingRecords.value.forEach(r => {
-    if (r.recordType === 'vehicle') {
-      vehicleIds.push(r.id)
-    } else if (r.recordType === 'equipment') {
-      equipmentIds.push(r.id)
-    } else {
-      unitIds.push(r.id)
+    if (selectedIds.value.includes(r.id)) {
+      typeGroups[r.recordType].push(r.id)
     }
   })
+
+  typeGroups.vehicle.forEach(id => dataStore.rejectVehicleRecord(id, reason))
+  typeGroups.equipment.forEach(id => dataStore.rejectEquipmentRecord(id, reason))
+  typeGroups.personnel.forEach(id => dataStore.rejectPersonnelRecord(id, reason))
+  typeGroups.fireHydrant.forEach(id => dataStore.rejectFireHydrantRecord(id, reason))
   
-  if (unitIds.length > 0) {
-    dataStore.batchRejectRecords(unitIds)
+  if (typeGroups.unit.length > 0) {
+    dataStore.batchRejectRecords(typeGroups.unit)
   }
-  if (vehicleIds.length > 0) {
-    vehicleIds.forEach(id => dataStore.rejectVehicleRecord(id, reason))
-  }
-  if (equipmentIds.length > 0) {
-    equipmentIds.forEach(id => dataStore.rejectEquipmentRecord(id, reason))
-  }
-  
+
   selectedIds.value = []
 }
 
@@ -251,20 +338,19 @@ const getStatusText = (status: string) => {
 }
 
 const exportFields: ExportFieldConfig[] = [
-  { key: 'recordType', label: '记录类型', formatter: (v) => (v === 'vehicle' ? '车辆' : v === 'equipment' ? '装备' : '单位') },
+  { key: 'recordType', label: '记录类型', formatter: (v) => getRecordTypeName(v as RecordType) },
   { key: 'unitName', label: '单位名称' },
   { key: 'plateNumber', label: '车牌号' },
   { key: 'equipmentName', label: '装备名称' },
+  { key: 'name', label: '姓名' },
+  { key: 'hydrantName', label: '消火栓名称' },
   { key: 'creditCode', label: '统一社会信用代码' },
   { key: 'equipmentCode', label: '装备编号' },
-  { key: 'contactName', label: '联系人/车主/使用人' },
+  { key: 'idCard', label: '身份证号' },
+  { key: 'hydrantCode', label: '消火栓编号' },
+  { key: 'contactName', label: '联系人' },
   { key: 'contactPhone', label: '联系电话' },
-  { key: 'address', label: '地址/存放位置' },
-  { key: 'vehicleType', label: '车辆类型' },
-  { key: 'vehicleBrand', label: '车辆品牌' },
-  { key: 'vehicleModel', label: '车辆型号' },
-  { key: 'equipmentType', label: '装备类型' },
-  { key: 'specification', label: '规格型号' },
+  { key: 'address', label: '地址/位置' },
   { key: 'createTime', label: '创建时间' },
   { key: 'status', label: '状态', formatter: (v) => getStatusText(v as string) },
 ]
@@ -274,14 +360,14 @@ const handleExport = () => {
     alert('暂无数据可导出')
     return
   }
-  
+
   validationResult.value = validateExportData(filteredRecords.value, exportFields)
-  
+
   if (!validationResult.value.isValid) {
     showExportModal.value = true
     return
   }
-  
+
   performExport()
 }
 
@@ -300,7 +386,7 @@ const performExport = () => {
       fileName: '数据核实记录',
     })
   }
-  
+
   showExportModal.value = false
 }
 </script>
@@ -339,7 +425,6 @@ const performExport = () => {
           <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
           <input
             v-model="searchKeyword"
-            @keyup.enter="handleSearch"
             type="text"
             placeholder="搜索单位名称、车牌号、联系人..."
             class="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -411,8 +496,8 @@ const performExport = () => {
               </th>
               <th class="text-left py-3 px-4 text-sm font-semibold text-gray-600">记录类型</th>
               <th class="text-left py-3 px-4 text-sm font-semibold text-gray-600">名称/车牌号</th>
-              <th class="text-left py-3 px-4 text-sm font-semibold text-gray-600">信用代码/VIN</th>
-              <th class="text-left py-3 px-4 text-sm font-semibold text-gray-600">联系人/车主</th>
+              <th class="text-left py-3 px-4 text-sm font-semibold text-gray-600">编号/VIN</th>
+              <th class="text-left py-3 px-4 text-sm font-semibold text-gray-600">联系人</th>
               <th class="text-left py-3 px-4 text-sm font-semibold text-gray-600">地址/类型</th>
               <th class="text-left py-3 px-4 text-sm font-semibold text-gray-600">创建时间</th>
               <th class="text-left py-3 px-4 text-sm font-semibold text-gray-600">状态</th>
@@ -433,39 +518,27 @@ const performExport = () => {
               </td>
               <td class="py-4 px-4">
                 <div class="flex items-center gap-2">
-                  <Building2 v-if="record.recordType === 'unit'" class="w-4 h-4 text-blue-500" />
-                  <Car v-else-if="record.recordType === 'vehicle'" class="w-4 h-4 text-green-500" />
-                  <Wrench v-else class="w-4 h-4 text-purple-500" />
-                  <span class="text-sm font-medium text-gray-700">{{ record.recordType === 'unit' ? '单位' : record.recordType === 'vehicle' ? '车辆' : '装备' }}</span>
+                  <component :is="getRecordTypeIcon(record.recordType)" class="w-4 h-4" :class="getRecordTypeColor(record.recordType)" />
+                  <span class="text-sm font-medium text-gray-700">{{ getRecordTypeName(record.recordType) }}</span>
                 </div>
               </td>
               <td class="py-4 px-4">
-                <span class="text-sm font-medium text-gray-800">
-                  {{ record.recordType === 'vehicle' ? record.plateNumber : record.recordType === 'equipment' ? record.equipmentName : record.unitName }}
-                </span>
+                <span class="text-sm font-medium text-gray-800">{{ getRecordName(record) }}</span>
               </td>
               <td class="py-4 px-4">
-                <span class="text-sm text-gray-600 font-mono">
-                  {{ record.recordType === 'vehicle' ? record.vin : record.recordType === 'equipment' ? record.equipmentCode : record.creditCode }}
-                </span>
+                <span class="text-sm text-gray-600 font-mono">{{ getRecordIdentifier(record) }}</span>
               </td>
               <td class="py-4 px-4">
                 <div class="flex items-center gap-2">
                   <User class="w-4 h-4 text-gray-400" />
-                  <span class="text-sm text-gray-600">
-                    {{ record.recordType === 'vehicle' ? record.ownerName : record.recordType === 'equipment' ? record.userName : record.contactName }}
-                  </span>
-                  <span class="text-sm text-gray-400">
-                    {{ record.recordType === 'vehicle' ? record.ownerPhone : record.recordType === 'equipment' ? record.userPhone : record.contactPhone }}
-                  </span>
+                  <span class="text-sm text-gray-600">{{ getRecordContact(record) }}</span>
+                  <span class="text-sm text-gray-400">{{ getRecordContactPhone(record) }}</span>
                 </div>
               </td>
               <td class="py-4 px-4">
                 <div class="flex items-center gap-2">
                   <MapPin class="w-4 h-4 text-gray-400" />
-                  <span class="text-sm text-gray-600 truncate max-w-[200px]">
-                    {{ record.recordType === 'vehicle' ? (record.vehicleType + ' ' + record.vehicleBrand + ' ' + record.vehicleModel) : record.recordType === 'equipment' ? (record.equipmentType + ' ' + record.specification) : record.address }}
-                  </span>
+                  <span class="text-sm text-gray-600 truncate max-w-[200px]">{{ getRecordLocation(record) }}</span>
                 </div>
               </td>
               <td class="py-4 px-4">
@@ -483,7 +556,7 @@ const performExport = () => {
                 <div class="flex items-center justify-end gap-2">
                   <button
                     v-if="record.status === 'pending'"
-                    @click="handleApprove(record.id, record.recordType || 'unit')"
+                    @click="approveRecord(record.id, record.recordType)"
                     class="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-green-600 bg-green-50 rounded-lg hover:bg-green-100 transition-colors"
                   >
                     <CheckCircle class="w-4 h-4" />
@@ -491,7 +564,7 @@ const performExport = () => {
                   </button>
                   <button
                     v-if="record.status === 'pending'"
-                    @click="handleReject(record.id, record.recordType || 'unit')"
+                    @click="rejectRecord(record.id, record.recordType)"
                     class="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors"
                   >
                     <XCircle class="w-4 h-4" />
@@ -603,4 +676,4 @@ const performExport = () => {
       </div>
     </Teleport>
   </div>
-</template>
+</template

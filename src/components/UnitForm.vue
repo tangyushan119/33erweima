@@ -4,6 +4,7 @@ import QRCode from 'qrcode'
 import { Send, RotateCcw, CheckCircle, QrCode, Download } from 'lucide-vue-next'
 import { useRouter } from 'vue-router'
 import { useDataStore } from '@/stores/dataStore'
+import { validateForm, validateRequired, validateCreditCode, validateName, validatePhone } from '@/lib/validation'
 
 interface UnitFormData {
   unitName: string
@@ -30,49 +31,35 @@ const formData = reactive<UnitFormData>({
   qrCodeUrl: '',
 })
 
-const errors = reactive<Partial<UnitFormData>>({})
+const errors = reactive<Record<string, string>>({})
 const showSuccess = ref(false)
 const isSubmitting = ref(false)
 const generatedQrCodeDataUrl = ref('')
 const showQrCodeModal = ref(false)
 
-const validateForm = (): boolean => {
-  Object.keys(errors).forEach(key => delete errors[key as keyof UnitFormData])
-  
-  if (!formData.unitName.trim()) {
-    errors.unitName = '请输入单位名称'
-  }
-  
-  if (!formData.creditCode.trim()) {
-    errors.creditCode = '请输入统一社会信用代码'
-  } else if (!/^[0-9A-Z]{18}$/.test(formData.creditCode)) {
-    errors.creditCode = '统一社会信用代码格式不正确'
-  }
-  
-  if (!formData.contactName.trim()) {
-    errors.contactName = '请输入联系人姓名'
-  }
-  
-  if (!formData.contactPhone.trim()) {
-    errors.contactPhone = '请输入联系电话'
-  } else if (!/^1[3-9]\d{9}$/.test(formData.contactPhone)) {
-    errors.contactPhone = '联系电话格式不正确'
-  }
-  
-  if (!formData.address.trim()) {
-    errors.address = '请输入单位地址'
-  }
-  
-  return Object.keys(errors).length === 0
+const validators: Record<keyof UnitFormData, (value: unknown) => string | null> = {
+  unitName: (value) => validateRequired(value as string, '单位名称'),
+  creditCode: (value) => validateCreditCode(value as string),
+  contactName: (value) => validateName(value as string),
+  contactPhone: (value) => validatePhone(value as string),
+  address: (value) => validateRequired(value as string, '单位地址'),
+  qrCodeUrl: () => null,
+}
+
+const validateFormData = (): boolean => {
+  const result = validateForm(formData, validators)
+  Object.keys(errors).forEach(key => delete errors[key])
+  Object.assign(errors, result.errors)
+  return result.isValid
 }
 
 const handleSubmit = async () => {
-  if (!validateForm()) return
-  
+  if (!validateFormData()) return
+
   isSubmitting.value = true
-  
+
   await new Promise(resolve => setTimeout(resolve, 1500))
-  
+
   dataStore.addPendingRecord({
     unitName: formData.unitName,
     creditCode: formData.creditCode,
@@ -82,12 +69,12 @@ const handleSubmit = async () => {
     qrCodeUrl: formData.qrCodeUrl,
     qrCodeId: '',
   })
-  
+
   emit('submit', { ...formData })
-  
+
   showSuccess.value = true
   isSubmitting.value = false
-  
+
   setTimeout(() => {
     router.push('/data-verify')
   }, 1500)
@@ -97,7 +84,7 @@ const generateEntryQrCode = async () => {
   const baseUrl = window.location.origin
   const qrCodeId = Date.now().toString()
   const formUrl = `/mobile/form/${qrCodeId}`
-  
+
   try {
     generatedQrCodeDataUrl.value = await QRCode.toDataURL(baseUrl + formUrl, {
       width: 256,
@@ -107,7 +94,7 @@ const generateEntryQrCode = async () => {
         light: '#ffffff',
       },
     })
-    
+
     dataStore.addQrCodeRecord({
       name: `${formData.unitName || '单位'} - 采集码`,
       description: '用于采集单位信息的二维码',
@@ -115,7 +102,7 @@ const generateEntryQrCode = async () => {
       qrCodeDataUrl: generatedQrCodeDataUrl.value,
       status: 'active',
     })
-    
+
     showQrCodeModal.value = true
   } catch (error) {
     console.error('二维码生成失败:', error)
@@ -130,20 +117,17 @@ const downloadQrCode = () => {
 }
 
 const handleReset = () => {
-  formData.unitName = ''
-  formData.creditCode = ''
-  formData.contactName = ''
-  formData.contactPhone = ''
-  formData.address = ''
-  formData.qrCodeUrl = ''
-  Object.keys(errors).forEach(key => delete errors[key as keyof UnitFormData])
+  Object.keys(formData).forEach(key => {
+    formData[key as keyof UnitFormData] = '' as UnitFormData[keyof UnitFormData]
+  })
+  Object.keys(errors).forEach(key => delete errors[key])
 }
 </script>
 
 <template>
   <div class="animate-fade-in">
-    <div 
-      v-if="showSuccess" 
+    <div
+      v-if="showSuccess"
       class="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg flex items-center gap-3 animate-slide-down"
     >
       <CheckCircle class="w-6 h-6 text-green-600" />
@@ -266,15 +250,15 @@ const handleReset = () => {
     </form>
 
     <Teleport to="body">
-      <div 
-        v-if="showQrCodeModal" 
+      <div
+        v-if="showQrCodeModal"
         class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
         @click.self="showQrCodeModal = false"
       >
         <div class="bg-white rounded-2xl w-full max-w-md p-6 animate-fade-in">
           <div class="flex items-center justify-between mb-4">
             <h3 class="text-lg font-bold text-gray-800">采集码已生成</h3>
-            <button 
+            <button
               @click="showQrCodeModal = false"
               class="text-gray-400 hover:text-gray-600"
             >
@@ -283,17 +267,17 @@ const handleReset = () => {
               </svg>
             </button>
           </div>
-          
+
           <div class="bg-gray-50 rounded-xl p-6 mb-4">
-            <img 
-              :src="generatedQrCodeDataUrl" 
+            <img
+              :src="generatedQrCodeDataUrl"
               alt="采集码"
               class="w-64 h-64 mx-auto object-contain"
             />
           </div>
-          
+
           <p class="text-sm text-gray-600 text-center mb-4">扫描二维码即可填写单位信息</p>
-          
+
           <button
             @click="downloadQrCode"
             class="w-full flex items-center justify-center gap-2 px-4 py-3 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors"

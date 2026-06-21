@@ -1,117 +1,43 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
 import { Car, Info, Edit2, Trash2, Eye, EyeOff } from 'lucide-vue-next'
 import VehicleForm from '@/components/VehicleForm.vue'
 import { useDataStore, type VehicleRecord } from '@/stores/dataStore'
-
-interface VehicleFormData {
-  plateNumber: string
-  vehicleType: string
-  vehicleBrand: string
-  vehicleModel: string
-  vehicleColor: string
-  engineNumber: string
-  vin: string
-  registerDate: string
-  ownerName: string
-  ownerPhone: string
-  unitId: string
-  unitName: string
-  frontImage?: string
-  backImage?: string
-  leftImage?: string
-  rightImage?: string
-}
+import { useRecordManagement } from '@/composables/useRecordManagement'
 
 const dataStore = useDataStore()
-const searchKeyword = ref('')
-const editingVehicle = ref<VehicleRecord | null>(null)
-const activeTab = ref<'pending' | 'approved' | 'rejected'>('pending')
 
-const currentRecords = computed(() => {
-  switch (activeTab.value) {
-    case 'pending':
-      return dataStore.vehiclePendingRecords
-    case 'approved':
-      return dataStore.vehicleApprovedRecords
-    case 'rejected':
-      return dataStore.vehicleRejectedRecords
-    default:
-      return []
-  }
+const {
+  searchKeyword,
+  editingRecord,
+  activeTab,
+  filteredRecords,
+  handleSubmit,
+  handleSave,
+  handleEdit,
+  handleDelete,
+  handleToggleStatus,
+  handleReset,
+  getStatusText,
+  getStatusClass,
+} = useRecordManagement<VehicleRecord>({
+  getPendingRecords: () => dataStore.vehiclePendingRecords,
+  getApprovedRecords: () => dataStore.vehicleApprovedRecords,
+  getRejectedRecords: () => dataStore.vehicleRejectedRecords,
+  addRecord: (data) => dataStore.addVehicleRecord(data as Omit<VehicleRecord, 'id' | 'createTime' | 'updateTime' | 'status' | 'activeStatus'>),
+  updateRecord: (id, data) => dataStore.updateVehicleRecord(id, data as Partial<Omit<VehicleRecord, 'id' | 'createTime' | 'status' | 'activeStatus'>>),
+  deleteRecord: (id) => dataStore.deleteVehicleRecord(id),
+  toggleActiveStatus: (id) => dataStore.toggleVehicleActiveStatus(id),
+  searchFields: (record) => [
+    record.plateNumber,
+    record.vehicleBrand,
+    record.vehicleModel,
+    record.ownerName,
+    record.unitName,
+  ],
 })
 
-const filteredVehicles = computed(() => {
-  let vehicles = currentRecords.value
-  
-  if (searchKeyword.value) {
-    const keyword = searchKeyword.value.toLowerCase()
-    vehicles = vehicles.filter(v =>
-      v.plateNumber.toLowerCase().includes(keyword) ||
-      v.vehicleBrand.toLowerCase().includes(keyword) ||
-      v.vehicleModel.toLowerCase().includes(keyword) ||
-      v.ownerName.toLowerCase().includes(keyword) ||
-      v.unitName.toLowerCase().includes(keyword)
-    )
-  }
-  
-  return vehicles
-})
-
-const handleSubmit = (data: VehicleFormData) => {
-  if (editingVehicle.value) {
-    dataStore.updateVehicleRecord(editingVehicle.value.id, data)
-    editingVehicle.value = null
-  } else {
-    dataStore.addVehicleRecord(data)
-  }
-}
-
-const handleSave = (data: VehicleFormData) => {
-  if (editingVehicle.value) {
-    dataStore.updateVehicleRecord(editingVehicle.value.id, data)
-    alert('草稿已保存')
-  } else {
-    dataStore.addVehicleRecord(data)
-    alert('草稿已保存')
-  }
-}
-
-const handleEdit = (vehicle: VehicleRecord) => {
-  editingVehicle.value = vehicle
-}
-
-const handleDelete = (id: string) => {
-  if (confirm('确定要删除这条车辆记录吗？')) {
-    dataStore.deleteVehicleRecord(id)
-  }
-}
-
-const handleToggleStatus = (id: string) => {
-  dataStore.toggleVehicleActiveStatus(id)
-}
-
-const handleReset = () => {
-  editingVehicle.value = null
-}
-
-const getStatusText = (status: VehicleRecord['status']) => {
-  switch (status) {
-    case 'pending': return '待审核'
-    case 'approved': return '已通过'
-    case 'rejected': return '已驳回'
-    default: return ''
-  }
-}
-
-const getStatusClass = (status: VehicleRecord['status']) => {
-  switch (status) {
-    case 'pending': return 'bg-yellow-100 text-yellow-700'
-    case 'approved': return 'bg-green-100 text-green-700'
-    case 'rejected': return 'bg-red-100 text-red-700'
-    default: return 'bg-gray-100 text-gray-600'
-  }
-}
+const editingVehicle = editingRecord
+const filteredVehicles = filteredRecords
 </script>
 
 <template>
