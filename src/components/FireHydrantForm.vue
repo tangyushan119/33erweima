@@ -72,6 +72,8 @@ watch(() => props.editData, (newData) => {
 const validateForm = (): boolean => {
   Object.keys(errors).forEach(key => delete errors[key as keyof FireHydrantFormData])
 
+  const forbiddenChars = /[<>{}[\]|`~!@#$%^&*()+=;:'"?\\]/
+
   if (!formData.hydrantCode.trim()) {
     errors.hydrantCode = '请输入消火栓编号'
   } else if (!/^[A-Za-z0-9\-]{3,20}$/.test(formData.hydrantCode)) {
@@ -80,6 +82,10 @@ const validateForm = (): boolean => {
 
   if (!formData.hydrantName.trim()) {
     errors.hydrantName = '请输入消火栓名称'
+  } else if (formData.hydrantName.length > 50) {
+    errors.hydrantName = '消火栓名称长度不能超过50个字符'
+  } else if (forbiddenChars.test(formData.hydrantName)) {
+    errors.hydrantName = '消火栓名称不能包含特殊字符（如<>{}\\[\\]|`~!@#$%^&*等）'
   }
 
   if (!formData.hydrantType.trim()) {
@@ -88,24 +94,47 @@ const validateForm = (): boolean => {
 
   if (!formData.model.trim()) {
     errors.model = '请输入型号'
+  } else if (formData.model.length > 30) {
+    errors.model = '型号长度不能超过30个字符'
+  } else if (!/^[\u4e00-\u9fa5A-Za-z0-9\-_/]+$/.test(formData.model)) {
+    errors.model = '型号只能包含中文、英文、数字、横线、下划线和斜杠'
   }
 
   if (!formData.specification.trim()) {
     errors.specification = '请输入规格'
+  } else if (formData.specification.length > 50) {
+    errors.specification = '规格长度不能超过50个字符'
+  } else if (!/^[\u4e00-\u9fa5A-Za-z0-9\-_/.××]+$/.test(formData.specification)) {
+    errors.specification = '规格只能包含中文、英文、数字、横线、下划线、斜杠、点和乘号'
   }
 
   if (!formData.installationDate.trim()) {
     errors.installationDate = '请选择安装日期'
+  } else {
+    const installDate = new Date(formData.installationDate)
+    const today = new Date()
+    if (installDate > today) {
+      errors.installationDate = '安装日期不能大于当前日期'
+    }
   }
 
   if (!formData.pressure.trim()) {
     errors.pressure = '请输入压力值'
   } else if (!/^\d+(\.\d{1,2})?MPa$/.test(formData.pressure)) {
     errors.pressure = '压力值格式不正确，例如：0.35MPa'
+  } else {
+    const pressureValue = parseFloat(formData.pressure.replace('MPa', ''))
+    if (pressureValue <= 0 || pressureValue > 10) {
+      errors.pressure = '压力值范围应为0-10MPa'
+    }
   }
 
   if (!formData.location.trim()) {
     errors.location = '请输入安装位置'
+  } else if (formData.location.length > 100) {
+    errors.location = '安装位置长度不能超过100个字符'
+  } else if (forbiddenChars.test(formData.location)) {
+    errors.location = '安装位置不能包含特殊字符（如<>{}\\[\\]|`~!@#$%^&*等）'
   }
 
   if (!formData.unitId.trim()) {
@@ -118,20 +147,30 @@ const validateForm = (): boolean => {
 
   if (!formData.nextCheckDate.trim()) {
     errors.nextCheckDate = '请选择下次检查日期'
+  } else if (formData.checkDate && formData.nextCheckDate <= formData.checkDate) {
+    errors.nextCheckDate = '下次检查日期应大于检查日期'
   }
 
   if (!formData.manufacturer.trim()) {
     errors.manufacturer = '请输入生产厂家'
+  } else if (formData.manufacturer.length > 50) {
+    errors.manufacturer = '生产厂家名称长度不能超过50个字符'
+  } else if (forbiddenChars.test(formData.manufacturer)) {
+    errors.manufacturer = '生产厂家名称不能包含特殊字符（如<>{}\\[\\]|`~!@#$%^&*等）'
   }
 
   if (!formData.inspector.trim()) {
     errors.inspector = '请输入检查人'
+  } else if (formData.inspector.length > 20) {
+    errors.inspector = '检查人姓名长度不能超过20个字符'
+  } else if (!/^[\u4e00-\u9fa5A-Za-z]{2,20}$/.test(formData.inspector)) {
+    errors.inspector = '检查人姓名只能包含中文和英文，长度2-20个字符'
   }
 
   if (!formData.inspectorPhone.trim()) {
     errors.inspectorPhone = '请输入检查人电话'
   } else if (!/^1[3-9]\d{9}$/.test(formData.inspectorPhone)) {
-    errors.inspectorPhone = '检查人电话格式不正确'
+    errors.inspectorPhone = '检查人电话格式不正确，请输入11位手机号码'
   }
 
   return Object.keys(errors).length === 0

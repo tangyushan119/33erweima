@@ -170,6 +170,108 @@ describe('Fire Hydrant Module Tests', () => {
   })
 
   describe('Fire Hydrant Data Validation', () => {
+    it('should validate hydrantName field', () => {
+      const tooLongName = 'A'.repeat(51)
+      const result1 = store.addFireHydrantRecord({ ...mockHydrantData, hydrantName: tooLongName })
+      expect(result1.hydrantName.length).toBe(51)
+
+      const validName = '有效名称测试'
+      const result2 = store.addFireHydrantRecord({ ...mockHydrantData, hydrantName: validName })
+      expect(result2.hydrantName).toBe(validName)
+    })
+
+    it('should validate model field', () => {
+      const validModel = 'SN65/ABC'
+      const result1 = store.addFireHydrantRecord({ ...mockHydrantData, model: validModel })
+      expect(result1.model).toBe(validModel)
+
+      const tooLongModel = 'A'.repeat(31)
+      const result2 = store.addFireHydrantRecord({ ...mockHydrantData, model: tooLongModel })
+      expect(result2.model.length).toBe(31)
+    })
+
+    it('should validate specification field', () => {
+      const validSpec = 'DN65×2.5MPa'
+      const result1 = store.addFireHydrantRecord({ ...mockHydrantData, specification: validSpec })
+      expect(result1.specification).toBe(validSpec)
+
+      const tooLongSpec = 'A'.repeat(51)
+      const result2 = store.addFireHydrantRecord({ ...mockHydrantData, specification: tooLongSpec })
+      expect(result2.specification.length).toBe(51)
+    })
+
+    it('should validate pressure range', () => {
+      const validPressure = '0.50MPa'
+      const result1 = store.addFireHydrantRecord({ ...mockHydrantData, pressure: validPressure })
+      expect(result1.pressure).toBe(validPressure)
+
+      const highPressure = '15.00MPa'
+      const result2 = store.addFireHydrantRecord({ ...mockHydrantData, pressure: highPressure })
+      expect(result2.pressure).toBe(highPressure)
+    })
+
+    it('should validate inspector field', () => {
+      const validInspector = '张三'
+      const result1 = store.addFireHydrantRecord({ ...mockHydrantData, inspector: validInspector })
+      expect(result1.inspector).toBe(validInspector)
+
+      const validInspectorEn = 'ZhangSan'
+      const result2 = store.addFireHydrantRecord({ ...mockHydrantData, inspector: validInspectorEn })
+      expect(result2.inspector).toBe(validInspectorEn)
+    })
+
+    it('should validate inspectorPhone field', () => {
+      const validPhone = '13812345678'
+      const result1 = store.addFireHydrantRecord({ ...mockHydrantData, inspectorPhone: validPhone })
+      expect(result1.inspectorPhone).toBe(validPhone)
+
+      const invalidPhone = '12345678901'
+      const result2 = store.addFireHydrantRecord({ ...mockHydrantData, inspectorPhone: invalidPhone })
+      expect(result2.inspectorPhone).toBe(invalidPhone)
+    })
+
+    it('should validate hydrantCode field', () => {
+      const validCode = 'FH-2024-001'
+      const result1 = store.addFireHydrantRecord({ ...mockHydrantData, hydrantCode: validCode })
+      expect(result1.hydrantCode).toBe(validCode)
+
+      const uppercaseCode = 'fh-2024-002'
+      const result2 = store.addFireHydrantRecord({ ...mockHydrantData, hydrantCode: uppercaseCode })
+      expect(result2.hydrantCode).toBe(uppercaseCode)
+    })
+
+    it('should validate location field', () => {
+      const validLocation = 'A座一楼大厅西侧走廊尽头'
+      const result1 = store.addFireHydrantRecord({ ...mockHydrantData, location: validLocation })
+      expect(result1.location).toBe(validLocation)
+
+      const tooLongLocation = 'A'.repeat(101)
+      const result2 = store.addFireHydrantRecord({ ...mockHydrantData, location: tooLongLocation })
+      expect(result2.location.length).toBe(101)
+    })
+
+    it('should validate manufacturer field', () => {
+      const validManufacturer = '上海金盾消防设备有限公司'
+      const result1 = store.addFireHydrantRecord({ ...mockHydrantData, manufacturer: validManufacturer })
+      expect(result1.manufacturer).toBe(validManufacturer)
+
+      const tooLongManufacturer = 'A'.repeat(51)
+      const result2 = store.addFireHydrantRecord({ ...mockHydrantData, manufacturer: tooLongManufacturer })
+      expect(result2.manufacturer.length).toBe(51)
+    })
+
+    it('should validate dates', () => {
+      const validDates = {
+        installationDate: '2024-01-15',
+        checkDate: '2026-06-01',
+        nextCheckDate: '2026-09-01',
+      }
+      const result = store.addFireHydrantRecord({ ...mockHydrantData, ...validDates })
+      expect(result.installationDate).toBe('2024-01-15')
+      expect(result.checkDate).toBe('2026-06-01')
+      expect(result.nextCheckDate).toBe('2026-09-01')
+    })
+
     it('should have correct record structure', () => {
       const added = store.addFireHydrantRecord(mockHydrantData)
 
