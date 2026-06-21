@@ -49,7 +49,7 @@ export interface VehicleRecord {
   ownerPhone: string
   unitId: string
   unitName: string
-  auditStatus: 'pending' | 'approved' | 'rejected'
+  status: 'pending' | 'approved' | 'rejected'
   activeStatus: 'active' | 'inactive'
   createTime: string
   updateTime: string
@@ -168,7 +168,7 @@ const defaultVehicleApprovedRecords: VehicleRecord[] = [
     ownerPhone: '13800138000',
     unitId: '3',
     unitName: '演示企业管理有限公司',
-    auditStatus: 'approved',
+    status: 'approved',
     activeStatus: 'active',
     createTime: '2026-06-20 11:00:00',
     updateTime: '2026-06-20 11:00:00',
@@ -187,7 +187,7 @@ const defaultVehicleApprovedRecords: VehicleRecord[] = [
     ownerPhone: '13900139000',
     unitId: '4',
     unitName: '示范信息技术有限公司',
-    auditStatus: 'approved',
+    status: 'approved',
     activeStatus: 'active',
     createTime: '2026-06-19 14:30:00',
     updateTime: '2026-06-19 14:30:00',
@@ -384,7 +384,7 @@ export const useDataStore = defineStore('data', () => {
     saveToStorage(STORAGE_KEYS.OPERATION_LOGS, operationLogs.value)
   }
 
-  const addVehicleRecord = (record: Omit<VehicleRecord, 'id' | 'createTime' | 'updateTime' | 'auditStatus' | 'activeStatus'>) => {
+  const addVehicleRecord = (record: Omit<VehicleRecord, 'id' | 'createTime' | 'updateTime' | 'status' | 'activeStatus'>) => {
     const now = new Date().toLocaleString('zh-CN', {
       year: 'numeric',
       month: '2-digit',
@@ -397,7 +397,7 @@ export const useDataStore = defineStore('data', () => {
     const newRecord: VehicleRecord = {
       ...record,
       id: 'v' + Date.now(),
-      auditStatus: 'pending',
+      status: 'pending',
       activeStatus: 'active',
       createTime: now,
       updateTime: now,
@@ -408,7 +408,7 @@ export const useDataStore = defineStore('data', () => {
     return newRecord
   }
 
-  const updateVehicleRecord = (id: string, record: Partial<Omit<VehicleRecord, 'id' | 'createTime' | 'auditStatus' | 'activeStatus'>>) => {
+  const updateVehicleRecord = (id: string, record: Partial<Omit<VehicleRecord, 'id' | 'createTime' | 'status' | 'activeStatus'>>) => {
     const pendingIndex = vehiclePendingRecords.value.findIndex(r => r.id === id)
     if (pendingIndex !== -1) {
       const updateTime = new Date().toLocaleString('zh-CN', {
@@ -446,7 +446,7 @@ export const useDataStore = defineStore('data', () => {
         ...vehicleRejectedRecords.value[rejectedIndex],
         ...record,
         updateTime,
-        auditStatus: 'pending',
+        status: 'pending',
         rejectReason: undefined,
       }
       vehiclePendingRecords.value.unshift(vehicleRejectedRecords.value.splice(rejectedIndex, 1)[0])
@@ -459,21 +459,11 @@ export const useDataStore = defineStore('data', () => {
     return null
   }
 
-  const submitVehicleForAudit = (id: string) => {
-    const pendingIndex = vehiclePendingRecords.value.findIndex(r => r.id === id)
-    if (pendingIndex !== -1) {
-      const vehicle = vehiclePendingRecords.value[pendingIndex]
-      addOperationLog('submit_vehicle', vehicle.id, vehicle.plateNumber, `提交车辆审核：${vehicle.plateNumber}`)
-      return vehicle
-    }
-    return null
-  }
-
   const approveVehicleRecord = (id: string) => {
     const index = vehiclePendingRecords.value.findIndex(r => r.id === id)
     if (index !== -1) {
       const record = vehiclePendingRecords.value.splice(index, 1)[0]
-      record.auditStatus = 'approved'
+      record.status = 'approved'
       vehicleApprovedRecords.value.unshift(record)
       saveRecords()
       addOperationLog('approve', record.id, record.plateNumber, `车辆审核通过：${record.plateNumber}`)
@@ -486,7 +476,7 @@ export const useDataStore = defineStore('data', () => {
     const index = vehiclePendingRecords.value.findIndex(r => r.id === id)
     if (index !== -1) {
       const record = vehiclePendingRecords.value.splice(index, 1)[0]
-      record.auditStatus = 'rejected'
+      record.status = 'rejected'
       record.rejectReason = reason
       vehicleRejectedRecords.value.unshift(record)
       saveRecords()
@@ -572,7 +562,6 @@ export const useDataStore = defineStore('data', () => {
     clearLogs,
     addVehicleRecord,
     updateVehicleRecord,
-    submitVehicleForAudit,
     approveVehicleRecord,
     rejectVehicleRecord,
     deleteVehicleRecord,

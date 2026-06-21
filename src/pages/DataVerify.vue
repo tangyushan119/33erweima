@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { ClipboardCheck, CheckCircle, XCircle, Search, Filter, Clock, User, MapPin, CheckSquare, Square, Download, AlertCircle } from 'lucide-vue-next'
-import { useDataStore } from '@/stores/dataStore'
+import { ClipboardCheck, CheckCircle, XCircle, Search, Filter, Clock, User, MapPin, CheckSquare, Square, Download, AlertCircle, Car, Building2 } from 'lucide-vue-next'
+import { useDataStore, type VehicleRecord } from '@/stores/dataStore'
 import { exportToExcel, exportToCsv, validateExportData, type ExportFieldConfig, type ExportValidationResult } from '@/lib/export'
 
 const searchKeyword = ref('')
 const filterStatus = ref('all')
+const filterType = ref('all')
 const selectedIds = ref<string[]>([])
 const exportFormat = ref<'excel' | 'csv'>('excel')
 const showExportModal = ref(false)
@@ -13,10 +14,17 @@ const validationResult = ref<ExportValidationResult | null>(null)
 
 const dataStore = useDataStore()
 
-const allRecords = computed(() => [
-  ...dataStore.pendingRecords,
-  ...dataStore.approvedRecords,
-  ...dataStore.rejectedRecords,
+interface AuditRecord extends VehicleRecord {
+  recordType?: 'vehicle' | 'unit'
+}
+
+const allRecords = computed((): AuditRecord[] => [
+  ...dataStore.pendingRecords.map(r => ({ ...r, recordType: 'unit' as const })),
+  ...dataStore.approvedRecords.map(r => ({ ...r, recordType: 'unit' as const })),
+  ...dataStore.rejectedRecords.map(r => ({ ...r, recordType: 'unit' as const })),
+  ...dataStore.vehiclePendingRecords.map(r => ({ ...r, recordType: 'vehicle' as const })),
+  ...dataStore.vehicleApprovedRecords.map(r => ({ ...r, recordType: 'vehicle' as const })),
+  ...dataStore.vehicleRejectedRecords.map(r => ({ ...r, recordType: 'vehicle' as const })),
 ])
 
 const statusOptions = [
@@ -26,6 +34,12 @@ const statusOptions = [
   { value: 'rejected', label: '已驳回' },
 ]
 
+const typeOptions = [
+  { value: 'all', label: '全部' },
+  { value: 'unit', label: '单位' },
+  { value: 'vehicle', label: '车辆' },
+]
+
 const filteredRecords = computed(() => {
   let result = allRecords.value
   
@@ -33,19 +47,32 @@ const filteredRecords = computed(() => {
     result = result.filter(record => record.status === filterStatus.value)
   }
   
+  if (filterType.value !== 'all') {
+    result = result.filter(record => record.recordType === filterType.value)
+  }
+  
   if (searchKeyword.value) {
     const keyword = searchKeyword.value.toLowerCase()
-    result = result.filter(record => 
-      record.unitName.toLowerCase().includes(keyword) ||
-      record.contactName.toLowerCase().includes(keyword) ||
-      record.creditCode.toLowerCase().includes(keyword)
-    )
+    result = result.filter(record => {
+      if (record.recordType === 'vehicle') {
+        return record.plateNumber.toLowerCase().includes(keyword) ||
+               record.vehicleBrand.toLowerCase().includes(keyword) ||
+               record.ownerName.toLowerCase().includes(keyword) ||
+               record.unitName.toLowerCase().includes(keyword)
+      } else {
+        return record.unitName.toLowerCase().includes(keyword) ||
+               record.contactName.toLowerCase().includes(keyword) ||
+               record.creditCode.toLowerCase().includes(keyword)
+      }
+    })
   }
   
   return result
 })
 
-const pendingCount = computed(() => dataStore.pendingRecords.length)
+const pendingCount = computed(() => 
+  dataStore.pendingRecords.length + dataStore.vehiclePendingRecords.length
+)
 
 const pendingRecords = computed(() => {
   return filteredRecords.value.filter(r => r.status === 'pending')
@@ -62,13 +89,24 @@ const handleFilterChange = () => {
   selectedIds.value = []
 }
 
-const handleApprove = (id: string) => {
-  dataStore.approveRecord(id)
+const handleApprove = (id: string, recordType: 'unit' | 'vehicle') => {
+  if (recordType === 'vehicle') {
+    dataStore.approveVehicleRecord(id)
+  } else {
+    dataStore.approveRecord(id)
+  }
   selectedIds.value = selectedIds.value.filter(i => i !== id)
 }
 
-const handleReject = (id: string) => {
-  dataStore.rejectRecord(id)
+const handleReject = (id: string, recordType: 'unit' | 'vehicle') => {
+  const reason = prompt('请输入驳回原因：')
+  if (reason !== null) {
+    if (recordType === 'vehicle') {
+      dataStore.rejectVehicleRecord(id, reason)
+    } else {
+      dataStore.rejectRecord(id)
+    }
+  }
   selectedIds.value = selectedIds.value.filter(i => i !== id)
 }
 
@@ -91,13 +129,50 @@ const handleSelectOne = (id: string) => {
 
 const handleBatchApprove = () => {
   if (selectedIds.value.length === 0) return
-  dataStore.batchApproveRecords(selectedIds.value)
+  const unitIds: string[] = []
+  const vehicleIds: string[] = []
+  
+  pendingRecords.value.forEach(r => {
+    if (r.recordType === 'vehicle') {
+      vehicleIds.push(r.id)
+    } else {
+      unitIds.push(r.id)
+    }
+  })
+  
+  if (unitIds.length > 0) {
+    dataStore.batchApproveRecords(unitIds)
+  }
+  if (vehicleIds.length > 0) {
+    vehicleIds.forEach(id => dataStore.approveVehicleRecord(id))
+  }
+  
   selectedIds.value = []
 }
 
 const handleBatchReject = () => {
   if (selectedIds.value.length === 0) return
-  dataStore.batchRejectRecords(selectedIds.value)
+  const reason = prompt('请输入驳回原因：')
+  if (reason === null) return
+  
+  const unitIds: string[] = []
+  const vehicleIds: string[] = []
+  
+  pendingRecords.value.forEach(r => {
+    if (r.recordType === 'vehicle') {
+      vehicleIds.push(r.id)
+    } else {
+      unitIds.push(r.id)
+    }
+  })
+  
+  if (unitIds.length > 0) {
+    dataStore.batchRejectRecords(unitIds)
+  }
+  if (vehicleIds.length > 0) {
+    vehicleIds.forEach(id => dataStore.rejectVehicleRecord(id, reason))
+  }
+  
   selectedIds.value = []
 }
 
@@ -128,11 +203,16 @@ const getStatusText = (status: string) => {
 }
 
 const exportFields: ExportFieldConfig[] = [
-  { key: 'unitName', label: '单位名称', required: true },
-  { key: 'creditCode', label: '统一社会信用代码', required: true },
-  { key: 'contactName', label: '联系人', required: true },
-  { key: 'contactPhone', label: '联系电话', required: true },
+  { key: 'recordType', label: '记录类型', formatter: (v) => (v === 'vehicle' ? '车辆' : '单位') },
+  { key: 'unitName', label: '单位名称' },
+  { key: 'plateNumber', label: '车牌号' },
+  { key: 'creditCode', label: '统一社会信用代码' },
+  { key: 'contactName', label: '联系人/车主' },
+  { key: 'contactPhone', label: '联系电话/车主电话' },
   { key: 'address', label: '地址' },
+  { key: 'vehicleType', label: '车辆类型' },
+  { key: 'vehicleBrand', label: '车辆品牌' },
+  { key: 'vehicleModel', label: '车辆型号' },
   { key: 'createTime', label: '创建时间' },
   { key: 'status', label: '状态', formatter: (v) => getStatusText(v as string) },
 ]
@@ -209,13 +289,22 @@ const performExport = () => {
             v-model="searchKeyword"
             @keyup.enter="handleSearch"
             type="text"
-            placeholder="搜索单位名称、联系人或信用代码"
+            placeholder="搜索单位名称、车牌号、联系人..."
             class="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           />
         </div>
         
         <div class="flex items-center gap-2">
           <Filter class="w-5 h-5 text-gray-400" />
+          <select
+            v-model="filterType"
+            @change="handleFilterChange"
+            class="px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          >
+            <option v-for="option in typeOptions" :key="option.value" :value="option.value">
+              {{ option.label }}
+            </option>
+          </select>
           <select
             v-model="filterStatus"
             @change="handleFilterChange"
@@ -268,10 +357,11 @@ const performExport = () => {
                   <Square v-else class="w-5 h-5" />
                 </button>
               </th>
-              <th class="text-left py-3 px-4 text-sm font-semibold text-gray-600">单位名称</th>
-              <th class="text-left py-3 px-4 text-sm font-semibold text-gray-600">统一社会信用代码</th>
-              <th class="text-left py-3 px-4 text-sm font-semibold text-gray-600">联系人</th>
-              <th class="text-left py-3 px-4 text-sm font-semibold text-gray-600">地址</th>
+              <th class="text-left py-3 px-4 text-sm font-semibold text-gray-600">记录类型</th>
+              <th class="text-left py-3 px-4 text-sm font-semibold text-gray-600">名称/车牌号</th>
+              <th class="text-left py-3 px-4 text-sm font-semibold text-gray-600">信用代码/VIN</th>
+              <th class="text-left py-3 px-4 text-sm font-semibold text-gray-600">联系人/车主</th>
+              <th class="text-left py-3 px-4 text-sm font-semibold text-gray-600">地址/类型</th>
               <th class="text-left py-3 px-4 text-sm font-semibold text-gray-600">创建时间</th>
               <th class="text-left py-3 px-4 text-sm font-semibold text-gray-600">状态</th>
               <th class="text-right py-3 px-4 text-sm font-semibold text-gray-600">操作</th>
@@ -290,22 +380,39 @@ const performExport = () => {
                 </button>
               </td>
               <td class="py-4 px-4">
-                <span class="text-sm font-medium text-gray-800">{{ record.unitName }}</span>
+                <div class="flex items-center gap-2">
+                  <Building2 v-if="record.recordType === 'unit'" class="w-4 h-4 text-blue-500" />
+                  <Car v-else class="w-4 h-4 text-green-500" />
+                  <span class="text-sm font-medium text-gray-700">{{ record.recordType === 'unit' ? '单位' : '车辆' }}</span>
+                </div>
               </td>
               <td class="py-4 px-4">
-                <span class="text-sm text-gray-600 font-mono">{{ record.creditCode }}</span>
+                <span class="text-sm font-medium text-gray-800">
+                  {{ record.recordType === 'vehicle' ? record.plateNumber : record.unitName }}
+                </span>
+              </td>
+              <td class="py-4 px-4">
+                <span class="text-sm text-gray-600 font-mono">
+                  {{ record.recordType === 'vehicle' ? record.vin : record.creditCode }}
+                </span>
               </td>
               <td class="py-4 px-4">
                 <div class="flex items-center gap-2">
                   <User class="w-4 h-4 text-gray-400" />
-                  <span class="text-sm text-gray-600">{{ record.contactName }}</span>
-                  <span class="text-sm text-gray-400">{{ record.contactPhone }}</span>
+                  <span class="text-sm text-gray-600">
+                    {{ record.recordType === 'vehicle' ? record.ownerName : record.contactName }}
+                  </span>
+                  <span class="text-sm text-gray-400">
+                    {{ record.recordType === 'vehicle' ? record.ownerPhone : record.contactPhone }}
+                  </span>
                 </div>
               </td>
               <td class="py-4 px-4">
                 <div class="flex items-center gap-2">
                   <MapPin class="w-4 h-4 text-gray-400" />
-                  <span class="text-sm text-gray-600 truncate max-w-[200px]">{{ record.address }}</span>
+                  <span class="text-sm text-gray-600 truncate max-w-[200px]">
+                    {{ record.recordType === 'vehicle' ? (record.vehicleType + ' ' + record.vehicleBrand + ' ' + record.vehicleModel) : record.address }}
+                  </span>
                 </div>
               </td>
               <td class="py-4 px-4">
@@ -323,7 +430,7 @@ const performExport = () => {
                 <div class="flex items-center justify-end gap-2">
                   <button
                     v-if="record.status === 'pending'"
-                    @click="handleApprove(record.id)"
+                    @click="handleApprove(record.id, record.recordType || 'unit')"
                     class="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-green-600 bg-green-50 rounded-lg hover:bg-green-100 transition-colors"
                   >
                     <CheckCircle class="w-4 h-4" />
@@ -331,7 +438,7 @@ const performExport = () => {
                   </button>
                   <button
                     v-if="record.status === 'pending'"
-                    @click="handleReject(record.id)"
+                    @click="handleReject(record.id, record.recordType || 'unit')"
                     class="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors"
                   >
                     <XCircle class="w-4 h-4" />

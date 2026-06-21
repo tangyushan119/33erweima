@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { Car, Info, Edit2, Trash2, Eye, EyeOff, CheckCircle, XCircle } from 'lucide-vue-next'
+import { Car, Info, Edit2, Trash2, Eye, EyeOff } from 'lucide-vue-next'
 import VehicleForm from '@/components/VehicleForm.vue'
 import { useDataStore, type VehicleRecord } from '@/stores/dataStore'
 
@@ -87,24 +87,11 @@ const handleToggleStatus = (id: string) => {
   dataStore.toggleVehicleActiveStatus(id)
 }
 
-const handleApprove = (id: string) => {
-  if (confirm('确定审核通过这条车辆记录吗？')) {
-    dataStore.approveVehicleRecord(id)
-  }
-}
-
-const handleReject = (id: string) => {
-  const reason = prompt('请输入驳回原因：')
-  if (reason !== null) {
-    dataStore.rejectVehicleRecord(id, reason)
-  }
-}
-
 const handleReset = () => {
   editingVehicle.value = null
 }
 
-const getAuditStatusText = (status: VehicleRecord['auditStatus']) => {
+const getStatusText = (status: VehicleRecord['status']) => {
   switch (status) {
     case 'pending': return '待审核'
     case 'approved': return '已通过'
@@ -113,7 +100,7 @@ const getAuditStatusText = (status: VehicleRecord['auditStatus']) => {
   }
 }
 
-const getAuditStatusClass = (status: VehicleRecord['auditStatus']) => {
+const getStatusClass = (status: VehicleRecord['status']) => {
   switch (status) {
     case 'pending': return 'bg-yellow-100 text-yellow-700'
     case 'approved': return 'bg-green-100 text-green-700'
@@ -228,12 +215,12 @@ const getAuditStatusClass = (status: VehicleRecord['auditStatus']) => {
                   <span class="text-sm font-bold text-gray-800">{{ vehicle.plateNumber }}</span>
                   <span 
                     class="px-2 py-0.5 rounded-full text-xs font-medium"
-                    :class="getAuditStatusClass(vehicle.auditStatus)"
+                    :class="getStatusClass(vehicle.status)"
                   >
-                    {{ getAuditStatusText(vehicle.auditStatus) }}
+                    {{ getStatusText(vehicle.status) }}
                   </span>
                   <span 
-                    v-if="vehicle.auditStatus === 'approved'"
+                    v-if="vehicle.status === 'approved'"
                     class="px-2 py-0.5 rounded-full text-xs font-medium"
                     :class="vehicle.activeStatus === 'active' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'"
                   >
@@ -241,23 +228,7 @@ const getAuditStatusClass = (status: VehicleRecord['auditStatus']) => {
                   </span>
                 </div>
                 <div class="flex items-center gap-1">
-                  <template v-if="vehicle.auditStatus === 'pending'">
-                    <button
-                      @click="handleApprove(vehicle.id)"
-                      class="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded transition-colors"
-                      title="审核通过"
-                    >
-                      <CheckCircle class="w-4 h-4" />
-                    </button>
-                    <button
-                      @click="handleReject(vehicle.id)"
-                      class="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
-                      title="驳回"
-                    >
-                      <XCircle class="w-4 h-4" />
-                    </button>
-                  </template>
-                  <template v-if="vehicle.auditStatus === 'approved'">
+                  <template v-if="vehicle.status === 'approved'">
                     <button
                       @click="handleToggleStatus(vehicle.id)"
                       class="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
@@ -267,7 +238,7 @@ const getAuditStatusClass = (status: VehicleRecord['auditStatus']) => {
                       <EyeOff v-else class="w-4 h-4" />
                     </button>
                   </template>
-                  <template v-if="vehicle.auditStatus !== 'approved'">
+                  <template v-if="vehicle.status !== 'approved'">
                     <button
                       @click="handleEdit(vehicle)"
                       class="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
