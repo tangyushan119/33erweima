@@ -95,6 +95,30 @@ export interface PersonnelRecord {
   rejectReason?: string
 }
 
+export interface FireHydrantRecord {
+  id: string
+  hydrantCode: string
+  hydrantName: string
+  hydrantType: string
+  model: string
+  specification: string
+  installationDate: string
+  pressure: string
+  status: 'pending' | 'approved' | 'rejected'
+  activeStatus: 'active' | 'inactive'
+  createTime: string
+  updateTime: string
+  rejectReason?: string
+  location: string
+  unitId: string
+  unitName: string
+  checkDate: string
+  nextCheckDate: string
+  manufacturer: string
+  inspector: string
+  inspectorPhone: string
+}
+
 const STORAGE_KEYS = {
   PENDING_RECORDS: 'unit_pending_records',
   APPROVED_RECORDS: 'unit_approved_records',
@@ -110,6 +134,9 @@ const STORAGE_KEYS = {
   PERSONNEL_PENDING_RECORDS: 'personnel_pending_records',
   PERSONNEL_APPROVED_RECORDS: 'personnel_approved_records',
   PERSONNEL_REJECTED_RECORDS: 'personnel_rejected_records',
+  FIREHYDRANT_PENDING_RECORDS: 'firehydrant_pending_records',
+  FIREHYDRANT_APPROVED_RECORDS: 'firehydrant_approved_records',
+  FIREHYDRANT_REJECTED_RECORDS: 'firehydrant_rejected_records',
 }
 
 function loadFromStorage<T>(key: string, defaultValue: T): T {
@@ -306,6 +333,57 @@ const defaultPersonnelApprovedRecords: PersonnelRecord[] = [
 
 const defaultPersonnelRejectedRecords: PersonnelRecord[] = []
 
+const defaultFireHydrantPendingRecords: FireHydrantRecord[] = []
+
+const defaultFireHydrantApprovedRecords: FireHydrantRecord[] = [
+  {
+    id: 'fh1',
+    hydrantCode: 'FH-2024-001',
+    hydrantName: 'A座一楼消火栓',
+    hydrantType: '室内消火栓',
+    model: 'SN65',
+    specification: 'DN65',
+    installationDate: '2024-03-15',
+    pressure: '0.35MPa',
+    status: 'approved',
+    activeStatus: 'active',
+    createTime: '2026-06-20 09:00:00',
+    updateTime: '2026-06-20 09:00:00',
+    location: 'A座一楼大厅西侧',
+    unitId: '3',
+    unitName: '演示企业管理有限公司',
+    checkDate: '2026-06-10',
+    nextCheckDate: '2026-09-10',
+    manufacturer: '上海金盾',
+    inspector: '王五',
+    inspectorPhone: '13700137000',
+  },
+  {
+    id: 'fh2',
+    hydrantCode: 'FH-2024-002',
+    hydrantName: 'B座二楼消火栓',
+    hydrantType: '室内消火栓',
+    model: 'SN65',
+    specification: 'DN65',
+    installationDate: '2024-03-20',
+    pressure: '0.32MPa',
+    status: 'approved',
+    activeStatus: 'active',
+    createTime: '2026-06-19 10:30:00',
+    updateTime: '2026-06-19 10:30:00',
+    location: 'B座二楼走廊北侧',
+    unitId: '4',
+    unitName: '示范信息技术有限公司',
+    checkDate: '2026-06-05',
+    nextCheckDate: '2026-09-05',
+    manufacturer: '北京泰和',
+    inspector: '赵六',
+    inspectorPhone: '13600136000',
+  },
+]
+
+const defaultFireHydrantRejectedRecords: FireHydrantRecord[] = []
+
 export const useDataStore = defineStore('data', () => {
   const pendingRecords = ref<UnitRecord[]>(loadFromStorage(STORAGE_KEYS.PENDING_RECORDS, defaultPendingRecords))
   const approvedRecords = ref<UnitRecord[]>(loadFromStorage(STORAGE_KEYS.APPROVED_RECORDS, defaultApprovedRecords))
@@ -321,6 +399,9 @@ export const useDataStore = defineStore('data', () => {
   const personnelPendingRecords = ref<PersonnelRecord[]>(loadFromStorage(STORAGE_KEYS.PERSONNEL_PENDING_RECORDS, defaultPersonnelPendingRecords))
   const personnelApprovedRecords = ref<PersonnelRecord[]>(loadFromStorage(STORAGE_KEYS.PERSONNEL_APPROVED_RECORDS, defaultPersonnelApprovedRecords))
   const personnelRejectedRecords = ref<PersonnelRecord[]>(loadFromStorage(STORAGE_KEYS.PERSONNEL_REJECTED_RECORDS, defaultPersonnelRejectedRecords))
+  const fireHydrantPendingRecords = ref<FireHydrantRecord[]>(loadFromStorage(STORAGE_KEYS.FIREHYDRANT_PENDING_RECORDS, defaultFireHydrantPendingRecords))
+  const fireHydrantApprovedRecords = ref<FireHydrantRecord[]>(loadFromStorage(STORAGE_KEYS.FIREHYDRANT_APPROVED_RECORDS, defaultFireHydrantApprovedRecords))
+  const fireHydrantRejectedRecords = ref<FireHydrantRecord[]>(loadFromStorage(STORAGE_KEYS.FIREHYDRANT_REJECTED_RECORDS, defaultFireHydrantRejectedRecords))
 
   const operator = ref('管理员')
 
@@ -367,6 +448,9 @@ export const useDataStore = defineStore('data', () => {
     saveToStorage(STORAGE_KEYS.PERSONNEL_PENDING_RECORDS, personnelPendingRecords.value)
     saveToStorage(STORAGE_KEYS.PERSONNEL_APPROVED_RECORDS, personnelApprovedRecords.value)
     saveToStorage(STORAGE_KEYS.PERSONNEL_REJECTED_RECORDS, personnelRejectedRecords.value)
+    saveToStorage(STORAGE_KEYS.FIREHYDRANT_PENDING_RECORDS, fireHydrantPendingRecords.value)
+    saveToStorage(STORAGE_KEYS.FIREHYDRANT_APPROVED_RECORDS, fireHydrantApprovedRecords.value)
+    saveToStorage(STORAGE_KEYS.FIREHYDRANT_REJECTED_RECORDS, fireHydrantRejectedRecords.value)
   }
 
   const addPendingRecord = (record: Omit<UnitRecord, 'id' | 'createTime' | 'status'>) => {
@@ -974,6 +1058,162 @@ export const useDataStore = defineStore('data', () => {
            personnelRejectedRecords.value.find(r => r.id === id)
   }
 
+  const addFireHydrantRecord = (record: Omit<FireHydrantRecord, 'id' | 'createTime' | 'updateTime' | 'status' | 'activeStatus'>) => {
+    const now = new Date().toLocaleString('zh-CN', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    }).replace(/\//g, '-')
+
+    const newRecord: FireHydrantRecord = {
+      ...record,
+      id: 'fh' + Date.now(),
+      status: 'pending',
+      activeStatus: 'active',
+      createTime: now,
+      updateTime: now,
+    }
+    fireHydrantPendingRecords.value.unshift(newRecord)
+    saveRecords()
+    addOperationLog('create_equipment', newRecord.id, newRecord.hydrantName, `创建消火栓记录待审核：${newRecord.hydrantName}`)
+    return newRecord
+  }
+
+  const updateFireHydrantRecord = (id: string, record: Partial<Omit<FireHydrantRecord, 'id' | 'createTime' | 'status' | 'activeStatus'>>) => {
+    const pendingIndex = fireHydrantPendingRecords.value.findIndex(r => r.id === id)
+    if (pendingIndex !== -1) {
+      const updateTime = new Date().toLocaleString('zh-CN', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+      }).replace(/\//g, '-')
+
+      fireHydrantPendingRecords.value[pendingIndex] = {
+        ...fireHydrantPendingRecords.value[pendingIndex],
+        ...record,
+        updateTime,
+      }
+      saveRecords()
+      const hydrant = fireHydrantPendingRecords.value[pendingIndex]
+      addOperationLog('update_equipment', hydrant.id, hydrant.hydrantName, `更新消火栓待审核记录：${hydrant.hydrantName}`)
+      return hydrant
+    }
+
+    const rejectedIndex = fireHydrantRejectedRecords.value.findIndex(r => r.id === id)
+    if (rejectedIndex !== -1) {
+      const updateTime = new Date().toLocaleString('zh-CN', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+      }).replace(/\//g, '-')
+
+      fireHydrantRejectedRecords.value[rejectedIndex] = {
+        ...fireHydrantRejectedRecords.value[rejectedIndex],
+        ...record,
+        updateTime,
+        status: 'pending',
+        rejectReason: undefined,
+      }
+      fireHydrantPendingRecords.value.unshift(fireHydrantRejectedRecords.value.splice(rejectedIndex, 1)[0])
+      saveRecords()
+      const hydrant = fireHydrantPendingRecords.value[0]
+      addOperationLog('update_equipment', hydrant.id, hydrant.hydrantName, `修改驳回消火栓并重新提交审核：${hydrant.hydrantName}`)
+      return hydrant
+    }
+
+    return null
+  }
+
+  const approveFireHydrantRecord = (id: string) => {
+    const index = fireHydrantPendingRecords.value.findIndex(r => r.id === id)
+    if (index !== -1) {
+      const record = fireHydrantPendingRecords.value.splice(index, 1)[0]
+      record.status = 'approved'
+      fireHydrantApprovedRecords.value.unshift(record)
+      saveRecords()
+      addOperationLog('approve', record.id, record.hydrantName, `消火栓审核通过：${record.hydrantName}`)
+      return record
+    }
+    return null
+  }
+
+  const rejectFireHydrantRecord = (id: string, reason?: string) => {
+    const index = fireHydrantPendingRecords.value.findIndex(r => r.id === id)
+    if (index !== -1) {
+      const record = fireHydrantPendingRecords.value.splice(index, 1)[0]
+      record.status = 'rejected'
+      record.rejectReason = reason
+      fireHydrantRejectedRecords.value.unshift(record)
+      saveRecords()
+      addOperationLog('reject', record.id, record.hydrantName, `消火栓审核驳回：${record.hydrantName}，原因：${reason || '无'}`)
+      return record
+    }
+    return null
+  }
+
+  const deleteFireHydrantRecord = (id: string) => {
+    const pendingIndex = fireHydrantPendingRecords.value.findIndex(r => r.id === id)
+    if (pendingIndex !== -1) {
+      const record = fireHydrantPendingRecords.value.splice(pendingIndex, 1)[0]
+      saveRecords()
+      addOperationLog('delete_equipment', record.id, record.hydrantName, `删除消火栓待审核记录：${record.hydrantName}`)
+      return record
+    }
+
+    const approvedIndex = fireHydrantApprovedRecords.value.findIndex(r => r.id === id)
+    if (approvedIndex !== -1) {
+      const record = fireHydrantApprovedRecords.value.splice(approvedIndex, 1)[0]
+      saveRecords()
+      addOperationLog('delete_equipment', record.id, record.hydrantName, `删除消火栓记录：${record.hydrantName}`)
+      return record
+    }
+
+    const rejectedIndex = fireHydrantRejectedRecords.value.findIndex(r => r.id === id)
+    if (rejectedIndex !== -1) {
+      const record = fireHydrantRejectedRecords.value.splice(rejectedIndex, 1)[0]
+      saveRecords()
+      addOperationLog('delete_equipment', record.id, record.hydrantName, `删除消火栓驳回记录：${record.hydrantName}`)
+      return record
+    }
+
+    return null
+  }
+
+  const toggleFireHydrantActiveStatus = (id: string) => {
+    const record = fireHydrantApprovedRecords.value.find(r => r.id === id)
+    if (record) {
+      const newStatus = record.activeStatus === 'active' ? 'inactive' : 'active'
+      record.activeStatus = newStatus
+      record.updateTime = new Date().toLocaleString('zh-CN', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+      }).replace(/\//g, '-')
+      saveRecords()
+      addOperationLog('update_equipment', record.id, record.hydrantName, `消火栓启用状态变更为：${newStatus === 'active' ? '启用' : '停用'}`)
+      return record
+    }
+    return null
+  }
+
+  const getFireHydrantById = (id: string) => {
+    return fireHydrantPendingRecords.value.find(r => r.id === id) ||
+           fireHydrantApprovedRecords.value.find(r => r.id === id) ||
+           fireHydrantRejectedRecords.value.find(r => r.id === id)
+  }
+
   return {
     pendingRecords,
     approvedRecords,
@@ -989,6 +1229,9 @@ export const useDataStore = defineStore('data', () => {
     personnelPendingRecords,
     personnelApprovedRecords,
     personnelRejectedRecords,
+    fireHydrantPendingRecords,
+    fireHydrantApprovedRecords,
+    fireHydrantRejectedRecords,
     operator,
     addPendingRecord,
     approveRecord,
@@ -1021,5 +1264,12 @@ export const useDataStore = defineStore('data', () => {
     deletePersonnelRecord,
     togglePersonnelActiveStatus,
     getPersonnelById,
+    addFireHydrantRecord,
+    updateFireHydrantRecord,
+    approveFireHydrantRecord,
+    rejectFireHydrantRecord,
+    deleteFireHydrantRecord,
+    toggleFireHydrantActiveStatus,
+    getFireHydrantById,
   }
 })
