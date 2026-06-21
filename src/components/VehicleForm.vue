@@ -20,6 +20,7 @@ interface VehicleFormData {
 
 const emit = defineEmits<{
   (e: 'submit', data: VehicleFormData): void
+  (e: 'save', data: VehicleFormData): void
   (e: 'reset'): void
 }>()
 
@@ -155,6 +156,10 @@ const handleSubmit = async () => {
   setTimeout(() => {
     showSuccess.value = false
   }, 2000)
+}
+
+const handleSave = () => {
+  emit('save', { ...formData })
 }
 
 const handleReset = () => {
@@ -364,12 +369,20 @@ const handleReset = () => {
           重置
         </button>
         <button
+          type="button"
+          @click="handleSave"
+          :disabled="isSubmitting"
+          class="flex items-center gap-2 px-6 py-3 border border-blue-300 text-blue-600 rounded-lg font-medium hover:bg-blue-50 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          保存草稿
+        </button>
+        <button
           type="submit"
           :disabled="isSubmitting"
           class="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <Send class="w-4 h-4" :class="{ 'animate-pulse': isSubmitting }" />
-          {{ isSubmitting ? '提交中...' : '提交' }}
+          {{ isSubmitting ? '提交中...' : '提交审核' }}
         </button>
       </div>
     </form>

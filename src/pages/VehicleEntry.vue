@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { Car, Info, Edit2, Trash2, Eye, EyeOff } from 'lucide-vue-next'
+import { Car, Info, Edit2, Trash2, Eye, EyeOff, CheckCircle, XCircle } from 'lucide-vue-next'
 import VehicleForm from '@/components/VehicleForm.vue'
 import { useDataStore, type VehicleRecord } from '@/stores/dataStore'
 
@@ -22,9 +22,23 @@ interface VehicleFormData {
 const dataStore = useDataStore()
 const searchKeyword = ref('')
 const editingVehicle = ref<VehicleRecord | null>(null)
+const activeTab = ref<'pending' | 'approved' | 'rejected'>('pending')
+
+const currentRecords = computed(() => {
+  switch (activeTab.value) {
+    case 'pending':
+      return dataStore.vehiclePendingRecords
+    case 'approved':
+      return dataStore.vehicleApprovedRecords
+    case 'rejected':
+      return dataStore.vehicleRejectedRecords
+    default:
+      return []
+  }
+})
 
 const filteredVehicles = computed(() => {
-  let vehicles = dataStore.vehicleRecords
+  let vehicles = currentRecords.value
   
   if (searchKeyword.value) {
     const keyword = searchKeyword.value.toLowerCase()
@@ -49,6 +63,16 @@ const handleSubmit = (data: VehicleFormData) => {
   }
 }
 
+const handleSave = (data: VehicleFormData) => {
+  if (editingVehicle.value) {
+    dataStore.updateVehicleRecord(editingVehicle.value.id, data)
+    alert('草稿已保存')
+  } else {
+    dataStore.addVehicleRecord(data)
+    alert('草稿已保存')
+  }
+}
+
 const handleEdit = (vehicle: VehicleRecord) => {
   editingVehicle.value = vehicle
 }
@@ -60,11 +84,42 @@ const handleDelete = (id: string) => {
 }
 
 const handleToggleStatus = (id: string) => {
-  dataStore.toggleVehicleStatus(id)
+  dataStore.toggleVehicleActiveStatus(id)
+}
+
+const handleApprove = (id: string) => {
+  if (confirm('确定审核通过这条车辆记录吗？')) {
+    dataStore.approveVehicleRecord(id)
+  }
+}
+
+const handleReject = (id: string) => {
+  const reason = prompt('请输入驳回原因：')
+  if (reason !== null) {
+    dataStore.rejectVehicleRecord(id, reason)
+  }
 }
 
 const handleReset = () => {
   editingVehicle.value = null
+}
+
+const getAuditStatusText = (status: VehicleRecord['auditStatus']) => {
+  switch (status) {
+    case 'pending': return '待审核'
+    case 'approved': return '已通过'
+    case 'rejected': return '已驳回'
+    default: return ''
+  }
+}
+
+const getAuditStatusClass = (status: VehicleRecord['auditStatus']) => {
+  switch (status) {
+    case 'pending': return 'bg-yellow-100 text-yellow-700'
+    case 'approved': return 'bg-green-100 text-green-700'
+    case 'rejected': return 'bg-red-100 text-red-700'
+    default: return 'bg-gray-100 text-gray-600'
+  }
 }
 </script>
 
@@ -77,7 +132,7 @@ const handleReset = () => {
         </div>
         <div>
           <h2 class="text-xl font-bold text-gray-800">车辆录入</h2>
-          <p class="text-sm text-gray-500">填写车辆基本信息，完成数据采集</p>
+          <p class="text-sm text-gray-500">填写车辆基本信息，提交审核后正式生效</p>
         </div>
       </div>
     </div>
@@ -99,6 +154,7 @@ const handleReset = () => {
           </div>
           <VehicleForm 
             @submit="handleSubmit" 
+            @save="handleSave"
             @reset="handleReset"
             :edit-data="editingVehicle || null"
           />
@@ -116,6 +172,7 @@ const handleReset = () => {
                 <li>VIN码为17位字母数字组合</li>
                 <li>联系电话请填写11位手机号</li>
                 <li>带<span class="text-red-500">*</span>为必填项</li>
+                <li>保存草稿后需提交审核才生效</li>
               </ul>
             </div>
           </div>
@@ -125,6 +182,30 @@ const handleReset = () => {
           <div class="flex items-center justify-between mb-4">
             <h3 class="text-sm font-semibold text-gray-700">车辆列表</h3>
             <span class="text-xs text-gray-500">共 {{ filteredVehicles.length }} 辆</span>
+          </div>
+
+          <div class="flex gap-2 mb-4">
+            <button
+              @click="activeTab = 'pending'"
+              class="flex-1 px-3 py-2 text-xs font-medium rounded-lg transition-colors"
+              :class="activeTab === 'pending' ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
+            >
+              待审核 ({{ dataStore.vehiclePendingRecords.length }})
+            </button>
+            <button
+              @click="activeTab = 'approved'"
+              class="flex-1 px-3 py-2 text-xs font-medium rounded-lg transition-colors"
+              :class="activeTab === 'approved' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
+            >
+              已通过 ({{ dataStore.vehicleApprovedRecords.length }})
+            </button>
+            <button
+              @click="activeTab = 'rejected'"
+              class="flex-1 px-3 py-2 text-xs font-medium rounded-lg transition-colors"
+              :class="activeTab === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
+            >
+              已驳回 ({{ dataStore.vehicleRejectedRecords.length }})
+            </button>
           </div>
           
           <div class="relative mb-4">
@@ -147,27 +228,54 @@ const handleReset = () => {
                   <span class="text-sm font-bold text-gray-800">{{ vehicle.plateNumber }}</span>
                   <span 
                     class="px-2 py-0.5 rounded-full text-xs font-medium"
-                    :class="vehicle.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'"
+                    :class="getAuditStatusClass(vehicle.auditStatus)"
                   >
-                    {{ vehicle.status === 'active' ? '启用' : '停用' }}
+                    {{ getAuditStatusText(vehicle.auditStatus) }}
+                  </span>
+                  <span 
+                    v-if="vehicle.auditStatus === 'approved'"
+                    class="px-2 py-0.5 rounded-full text-xs font-medium"
+                    :class="vehicle.activeStatus === 'active' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'"
+                  >
+                    {{ vehicle.activeStatus === 'active' ? '启用' : '停用' }}
                   </span>
                 </div>
                 <div class="flex items-center gap-1">
-                  <button
-                    @click="handleToggleStatus(vehicle.id)"
-                    class="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-200 rounded transition-colors"
-                    :title="vehicle.status === 'active' ? '停用' : '启用'"
-                  >
-                    <Eye v-if="vehicle.status === 'active'" class="w-4 h-4" />
-                    <EyeOff v-else class="w-4 h-4" />
-                  </button>
-                  <button
-                    @click="handleEdit(vehicle)"
-                    class="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                    title="编辑"
-                  >
-                    <Edit2 class="w-4 h-4" />
-                  </button>
+                  <template v-if="vehicle.auditStatus === 'pending'">
+                    <button
+                      @click="handleApprove(vehicle.id)"
+                      class="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded transition-colors"
+                      title="审核通过"
+                    >
+                      <CheckCircle class="w-4 h-4" />
+                    </button>
+                    <button
+                      @click="handleReject(vehicle.id)"
+                      class="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                      title="驳回"
+                    >
+                      <XCircle class="w-4 h-4" />
+                    </button>
+                  </template>
+                  <template v-if="vehicle.auditStatus === 'approved'">
+                    <button
+                      @click="handleToggleStatus(vehicle.id)"
+                      class="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                      :title="vehicle.activeStatus === 'active' ? '停用' : '启用'"
+                    >
+                      <Eye v-if="vehicle.activeStatus === 'active'" class="w-4 h-4" />
+                      <EyeOff v-else class="w-4 h-4" />
+                    </button>
+                  </template>
+                  <template v-if="vehicle.auditStatus !== 'approved'">
+                    <button
+                      @click="handleEdit(vehicle)"
+                      class="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                      title="编辑"
+                    >
+                      <Edit2 class="w-4 h-4" />
+                    </button>
+                  </template>
                   <button
                     @click="handleDelete(vehicle.id)"
                     class="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
@@ -181,6 +289,7 @@ const handleReset = () => {
                 <p>{{ vehicle.vehicleBrand }} {{ vehicle.vehicleModel }} | {{ vehicle.vehicleType }}</p>
                 <p>{{ vehicle.ownerName }} | {{ vehicle.ownerPhone }}</p>
                 <p class="truncate">{{ vehicle.unitName }}</p>
+                <p v-if="vehicle.rejectReason" class="text-red-500">驳回原因：{{ vehicle.rejectReason }}</p>
               </div>
             </div>
             <div v-if="filteredVehicles.length > 10" class="text-center text-sm text-gray-500 py-2">

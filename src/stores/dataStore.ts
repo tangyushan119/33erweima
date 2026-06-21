@@ -27,7 +27,7 @@ export interface QrCodeRecord {
 
 export interface OperationLog {
   id: string
-  operationType: 'create' | 'approve' | 'reject' | 'batch_approve' | 'batch_reject' | 'scan' | 'toggle_qrcode' | 'create_vehicle' | 'update_vehicle' | 'delete_vehicle'
+  operationType: 'create' | 'approve' | 'reject' | 'batch_approve' | 'batch_reject' | 'scan' | 'toggle_qrcode' | 'create_vehicle' | 'update_vehicle' | 'delete_vehicle' | 'submit_vehicle'
   targetId: string
   targetName: string
   detail: string
@@ -49,9 +49,11 @@ export interface VehicleRecord {
   ownerPhone: string
   unitId: string
   unitName: string
-  status: 'active' | 'inactive'
+  auditStatus: 'pending' | 'approved' | 'rejected'
+  activeStatus: 'active' | 'inactive'
   createTime: string
   updateTime: string
+  rejectReason?: string
 }
 
 const STORAGE_KEYS = {
@@ -60,7 +62,9 @@ const STORAGE_KEYS = {
   REJECTED_RECORDS: 'unit_rejected_records',
   QRCODE_RECORDS: 'qrcode_records',
   OPERATION_LOGS: 'operation_logs',
-  VEHICLE_RECORDS: 'vehicle_records',
+  VEHICLE_PENDING_RECORDS: 'vehicle_pending_records',
+  VEHICLE_APPROVED_RECORDS: 'vehicle_approved_records',
+  VEHICLE_REJECTED_RECORDS: 'vehicle_rejected_records',
 }
 
 function loadFromStorage<T>(key: string, defaultValue: T): T {
@@ -147,7 +151,9 @@ const defaultQrCodeRecords: QrCodeRecord[] = [
   },
 ]
 
-const defaultVehicleRecords: VehicleRecord[] = [
+const defaultVehiclePendingRecords: VehicleRecord[] = []
+
+const defaultVehicleApprovedRecords: VehicleRecord[] = [
   {
     id: 'v1',
     plateNumber: '京A12345',
@@ -162,7 +168,8 @@ const defaultVehicleRecords: VehicleRecord[] = [
     ownerPhone: '13800138000',
     unitId: '3',
     unitName: '演示企业管理有限公司',
-    status: 'active',
+    auditStatus: 'approved',
+    activeStatus: 'active',
     createTime: '2026-06-20 11:00:00',
     updateTime: '2026-06-20 11:00:00',
   },
@@ -180,11 +187,14 @@ const defaultVehicleRecords: VehicleRecord[] = [
     ownerPhone: '13900139000',
     unitId: '4',
     unitName: '示范信息技术有限公司',
-    status: 'active',
+    auditStatus: 'approved',
+    activeStatus: 'active',
     createTime: '2026-06-19 14:30:00',
     updateTime: '2026-06-19 14:30:00',
   },
 ]
+
+const defaultVehicleRejectedRecords: VehicleRecord[] = []
 
 export const useDataStore = defineStore('data', () => {
   const pendingRecords = ref<UnitRecord[]>(loadFromStorage(STORAGE_KEYS.PENDING_RECORDS, defaultPendingRecords))
@@ -192,7 +202,9 @@ export const useDataStore = defineStore('data', () => {
   const rejectedRecords = ref<UnitRecord[]>(loadFromStorage(STORAGE_KEYS.REJECTED_RECORDS, []))
   const qrCodeRecords = ref<QrCodeRecord[]>(loadFromStorage(STORAGE_KEYS.QRCODE_RECORDS, defaultQrCodeRecords))
   const operationLogs = ref<OperationLog[]>(loadFromStorage(STORAGE_KEYS.OPERATION_LOGS, []))
-  const vehicleRecords = ref<VehicleRecord[]>(loadFromStorage(STORAGE_KEYS.VEHICLE_RECORDS, defaultVehicleRecords))
+  const vehiclePendingRecords = ref<VehicleRecord[]>(loadFromStorage(STORAGE_KEYS.VEHICLE_PENDING_RECORDS, defaultVehiclePendingRecords))
+  const vehicleApprovedRecords = ref<VehicleRecord[]>(loadFromStorage(STORAGE_KEYS.VEHICLE_APPROVED_RECORDS, defaultVehicleApprovedRecords))
+  const vehicleRejectedRecords = ref<VehicleRecord[]>(loadFromStorage(STORAGE_KEYS.VEHICLE_REJECTED_RECORDS, defaultVehicleRejectedRecords))
 
   const operator = ref('管理员')
 
@@ -230,7 +242,9 @@ export const useDataStore = defineStore('data', () => {
     saveToStorage(STORAGE_KEYS.APPROVED_RECORDS, approvedRecords.value)
     saveToStorage(STORAGE_KEYS.REJECTED_RECORDS, rejectedRecords.value)
     saveToStorage(STORAGE_KEYS.QRCODE_RECORDS, qrCodeRecords.value)
-    saveToStorage(STORAGE_KEYS.VEHICLE_RECORDS, vehicleRecords.value)
+    saveToStorage(STORAGE_KEYS.VEHICLE_PENDING_RECORDS, vehiclePendingRecords.value)
+    saveToStorage(STORAGE_KEYS.VEHICLE_APPROVED_RECORDS, vehicleApprovedRecords.value)
+    saveToStorage(STORAGE_KEYS.VEHICLE_REJECTED_RECORDS, vehicleRejectedRecords.value)
   }
 
   const addPendingRecord = (record: Omit<UnitRecord, 'id' | 'createTime' | 'status'>) => {
@@ -370,7 +384,7 @@ export const useDataStore = defineStore('data', () => {
     saveToStorage(STORAGE_KEYS.OPERATION_LOGS, operationLogs.value)
   }
 
-  const addVehicleRecord = (record: Omit<VehicleRecord, 'id' | 'createTime' | 'updateTime' | 'status'>) => {
+  const addVehicleRecord = (record: Omit<VehicleRecord, 'id' | 'createTime' | 'updateTime' | 'auditStatus' | 'activeStatus'>) => {
     const now = new Date().toLocaleString('zh-CN', {
       year: 'numeric',
       month: '2-digit',
@@ -383,19 +397,20 @@ export const useDataStore = defineStore('data', () => {
     const newRecord: VehicleRecord = {
       ...record,
       id: 'v' + Date.now(),
-      status: 'active',
+      auditStatus: 'pending',
+      activeStatus: 'active',
       createTime: now,
       updateTime: now,
     }
-    vehicleRecords.value.unshift(newRecord)
+    vehiclePendingRecords.value.unshift(newRecord)
     saveRecords()
-    addOperationLog('create_vehicle', newRecord.id, newRecord.plateNumber, `创建车辆记录：${newRecord.plateNumber}`)
+    addOperationLog('create_vehicle', newRecord.id, newRecord.plateNumber, `创建车辆记录待审核：${newRecord.plateNumber}`)
     return newRecord
   }
 
-  const updateVehicleRecord = (id: string, record: Partial<Omit<VehicleRecord, 'id' | 'createTime' | 'status'>>) => {
-    const index = vehicleRecords.value.findIndex(r => r.id === id)
-    if (index !== -1) {
+  const updateVehicleRecord = (id: string, record: Partial<Omit<VehicleRecord, 'id' | 'createTime' | 'auditStatus' | 'activeStatus'>>) => {
+    const pendingIndex = vehiclePendingRecords.value.findIndex(r => r.id === id)
+    if (pendingIndex !== -1) {
       const updateTime = new Date().toLocaleString('zh-CN', {
         year: 'numeric',
         month: '2-digit',
@@ -405,35 +420,115 @@ export const useDataStore = defineStore('data', () => {
         second: '2-digit',
       }).replace(/\//g, '-')
 
-      vehicleRecords.value[index] = {
-        ...vehicleRecords.value[index],
+      vehiclePendingRecords.value[pendingIndex] = {
+        ...vehiclePendingRecords.value[pendingIndex],
         ...record,
         updateTime,
       }
       saveRecords()
-      const vehicle = vehicleRecords.value[index]
-      addOperationLog('update_vehicle', vehicle.id, vehicle.plateNumber, `更新车辆记录：${vehicle.plateNumber}`)
+      const vehicle = vehiclePendingRecords.value[pendingIndex]
+      addOperationLog('update_vehicle', vehicle.id, vehicle.plateNumber, `更新车辆待审核记录：${vehicle.plateNumber}`)
+      return vehicle
+    }
+
+    const rejectedIndex = vehicleRejectedRecords.value.findIndex(r => r.id === id)
+    if (rejectedIndex !== -1) {
+      const updateTime = new Date().toLocaleString('zh-CN', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+      }).replace(/\//g, '-')
+
+      vehicleRejectedRecords.value[rejectedIndex] = {
+        ...vehicleRejectedRecords.value[rejectedIndex],
+        ...record,
+        updateTime,
+        auditStatus: 'pending',
+        rejectReason: undefined,
+      }
+      vehiclePendingRecords.value.unshift(vehicleRejectedRecords.value.splice(rejectedIndex, 1)[0])
+      saveRecords()
+      const vehicle = vehiclePendingRecords.value[0]
+      addOperationLog('update_vehicle', vehicle.id, vehicle.plateNumber, `修改驳回车辆并重新提交审核：${vehicle.plateNumber}`)
+      return vehicle
+    }
+
+    return null
+  }
+
+  const submitVehicleForAudit = (id: string) => {
+    const pendingIndex = vehiclePendingRecords.value.findIndex(r => r.id === id)
+    if (pendingIndex !== -1) {
+      const vehicle = vehiclePendingRecords.value[pendingIndex]
+      addOperationLog('submit_vehicle', vehicle.id, vehicle.plateNumber, `提交车辆审核：${vehicle.plateNumber}`)
       return vehicle
     }
     return null
   }
 
-  const deleteVehicleRecord = (id: string) => {
-    const index = vehicleRecords.value.findIndex(r => r.id === id)
+  const approveVehicleRecord = (id: string) => {
+    const index = vehiclePendingRecords.value.findIndex(r => r.id === id)
     if (index !== -1) {
-      const record = vehicleRecords.value.splice(index, 1)[0]
+      const record = vehiclePendingRecords.value.splice(index, 1)[0]
+      record.auditStatus = 'approved'
+      vehicleApprovedRecords.value.unshift(record)
       saveRecords()
-      addOperationLog('delete_vehicle', record.id, record.plateNumber, `删除车辆记录：${record.plateNumber}`)
+      addOperationLog('approve', record.id, record.plateNumber, `车辆审核通过：${record.plateNumber}`)
       return record
     }
     return null
   }
 
-  const toggleVehicleStatus = (id: string) => {
-    const record = vehicleRecords.value.find(r => r.id === id)
+  const rejectVehicleRecord = (id: string, reason?: string) => {
+    const index = vehiclePendingRecords.value.findIndex(r => r.id === id)
+    if (index !== -1) {
+      const record = vehiclePendingRecords.value.splice(index, 1)[0]
+      record.auditStatus = 'rejected'
+      record.rejectReason = reason
+      vehicleRejectedRecords.value.unshift(record)
+      saveRecords()
+      addOperationLog('reject', record.id, record.plateNumber, `车辆审核驳回：${record.plateNumber}，原因：${reason || '无'}`)
+      return record
+    }
+    return null
+  }
+
+  const deleteVehicleRecord = (id: string) => {
+    const pendingIndex = vehiclePendingRecords.value.findIndex(r => r.id === id)
+    if (pendingIndex !== -1) {
+      const record = vehiclePendingRecords.value.splice(pendingIndex, 1)[0]
+      saveRecords()
+      addOperationLog('delete_vehicle', record.id, record.plateNumber, `删除车辆待审核记录：${record.plateNumber}`)
+      return record
+    }
+
+    const approvedIndex = vehicleApprovedRecords.value.findIndex(r => r.id === id)
+    if (approvedIndex !== -1) {
+      const record = vehicleApprovedRecords.value.splice(approvedIndex, 1)[0]
+      saveRecords()
+      addOperationLog('delete_vehicle', record.id, record.plateNumber, `删除车辆记录：${record.plateNumber}`)
+      return record
+    }
+
+    const rejectedIndex = vehicleRejectedRecords.value.findIndex(r => r.id === id)
+    if (rejectedIndex !== -1) {
+      const record = vehicleRejectedRecords.value.splice(rejectedIndex, 1)[0]
+      saveRecords()
+      addOperationLog('delete_vehicle', record.id, record.plateNumber, `删除车辆驳回记录：${record.plateNumber}`)
+      return record
+    }
+
+    return null
+  }
+
+  const toggleVehicleActiveStatus = (id: string) => {
+    const record = vehicleApprovedRecords.value.find(r => r.id === id)
     if (record) {
-      const newStatus = record.status === 'active' ? 'inactive' : 'active'
-      record.status = newStatus
+      const newStatus = record.activeStatus === 'active' ? 'inactive' : 'active'
+      record.activeStatus = newStatus
       record.updateTime = new Date().toLocaleString('zh-CN', {
         year: 'numeric',
         month: '2-digit',
@@ -443,14 +538,16 @@ export const useDataStore = defineStore('data', () => {
         second: '2-digit',
       }).replace(/\//g, '-')
       saveRecords()
-      addOperationLog('update_vehicle', record.id, record.plateNumber, `车辆状态变更为：${newStatus === 'active' ? '启用' : '停用'}`)
+      addOperationLog('update_vehicle', record.id, record.plateNumber, `车辆启用状态变更为：${newStatus === 'active' ? '启用' : '停用'}`)
       return record
     }
     return null
   }
 
   const getVehicleById = (id: string) => {
-    return vehicleRecords.value.find(r => r.id === id)
+    return vehiclePendingRecords.value.find(r => r.id === id) ||
+           vehicleApprovedRecords.value.find(r => r.id === id) ||
+           vehicleRejectedRecords.value.find(r => r.id === id)
   }
 
   return {
@@ -459,7 +556,9 @@ export const useDataStore = defineStore('data', () => {
     rejectedRecords,
     qrCodeRecords,
     operationLogs,
-    vehicleRecords,
+    vehiclePendingRecords,
+    vehicleApprovedRecords,
+    vehicleRejectedRecords,
     operator,
     addPendingRecord,
     approveRecord,
@@ -473,8 +572,11 @@ export const useDataStore = defineStore('data', () => {
     clearLogs,
     addVehicleRecord,
     updateVehicleRecord,
+    submitVehicleForAudit,
+    approveVehicleRecord,
+    rejectVehicleRecord,
     deleteVehicleRecord,
-    toggleVehicleStatus,
+    toggleVehicleActiveStatus,
     getVehicleById,
   }
 })
