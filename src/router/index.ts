@@ -2,6 +2,7 @@ import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import UnitEntry from '@/pages/UnitEntry.vue'
 import VehicleEntry from '@/pages/VehicleEntry.vue'
 import EquipmentEntry from '@/pages/EquipmentEntry.vue'
+import PersonnelEntry from '@/pages/PersonnelEntry.vue'
 import DataVerify from '@/pages/DataVerify.vue'
 import DataApplication from '@/pages/DataApplication.vue'
 import QrCodeGenerator from '@/pages/QrCodeGenerator.vue'
@@ -31,6 +32,11 @@ const routes: RouteRecordRaw[] = [
     path: '/data-collection/equipment-entry',
     name: 'equipmentEntry',
     component: EquipmentEntry,
+  },
+  {
+    path: '/data-collection/personnel-entry',
+    name: 'personnelEntry',
+    component: PersonnelEntry,
   },
   {
     path: '/data-verify',

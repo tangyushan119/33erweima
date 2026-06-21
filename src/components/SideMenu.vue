@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Building2, FileText, Car, Wrench } from 'lucide-vue-next'
+import { Building2, FileText, Car, Wrench, Users } from 'lucide-vue-next'
 import { useRouter, useRoute } from 'vue-router'
 
 const router = useRouter()
@@ -21,6 +21,11 @@ const sideMenuItems = [
     name: '装备录入',
     icon: Wrench,
     path: '/data-collection/equipment-entry',
+  },
+  {
+    name: '人员录入',
+    icon: Users,
+    path: '/data-collection/personnel-entry',
   },
   {
     name: '操作日志',

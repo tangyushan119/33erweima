@@ -77,6 +77,24 @@ export interface EquipmentRecord {
   rejectReason?: string
 }
 
+export interface PersonnelRecord {
+  id: string
+  name: string
+  idCard: string
+  phone: string
+  gender: string
+  age: string
+  department: string
+  position: string
+  unitId: string
+  unitName: string
+  status: 'pending' | 'approved' | 'rejected'
+  activeStatus: 'active' | 'inactive'
+  createTime: string
+  updateTime: string
+  rejectReason?: string
+}
+
 const STORAGE_KEYS = {
   PENDING_RECORDS: 'unit_pending_records',
   APPROVED_RECORDS: 'unit_approved_records',
@@ -89,6 +107,9 @@ const STORAGE_KEYS = {
   EQUIPMENT_PENDING_RECORDS: 'equipment_pending_records',
   EQUIPMENT_APPROVED_RECORDS: 'equipment_approved_records',
   EQUIPMENT_REJECTED_RECORDS: 'equipment_rejected_records',
+  PERSONNEL_PENDING_RECORDS: 'personnel_pending_records',
+  PERSONNEL_APPROVED_RECORDS: 'personnel_approved_records',
+  PERSONNEL_REJECTED_RECORDS: 'personnel_rejected_records',
 }
 
 function loadFromStorage<T>(key: string, defaultValue: T): T {
@@ -246,6 +267,45 @@ const defaultEquipmentApprovedRecords: EquipmentRecord[] = [
 
 const defaultEquipmentRejectedRecords: EquipmentRecord[] = []
 
+const defaultPersonnelPendingRecords: PersonnelRecord[] = []
+
+const defaultPersonnelApprovedRecords: PersonnelRecord[] = [
+  {
+    id: 'p1',
+    name: '张三',
+    idCard: '110101199001011234',
+    phone: '13800138000',
+    gender: '男',
+    age: '36',
+    department: '技术部',
+    position: '工程师',
+    unitId: '3',
+    unitName: '演示企业管理有限公司',
+    status: 'approved',
+    activeStatus: 'active',
+    createTime: '2026-06-20 09:00:00',
+    updateTime: '2026-06-20 09:00:00',
+  },
+  {
+    id: 'p2',
+    name: '李四',
+    idCard: '110102199202022345',
+    phone: '13900139000',
+    gender: '女',
+    age: '34',
+    department: '财务部',
+    position: '会计',
+    unitId: '4',
+    unitName: '示范信息技术有限公司',
+    status: 'approved',
+    activeStatus: 'active',
+    createTime: '2026-06-19 10:30:00',
+    updateTime: '2026-06-19 10:30:00',
+  },
+]
+
+const defaultPersonnelRejectedRecords: PersonnelRecord[] = []
+
 export const useDataStore = defineStore('data', () => {
   const pendingRecords = ref<UnitRecord[]>(loadFromStorage(STORAGE_KEYS.PENDING_RECORDS, defaultPendingRecords))
   const approvedRecords = ref<UnitRecord[]>(loadFromStorage(STORAGE_KEYS.APPROVED_RECORDS, defaultApprovedRecords))
@@ -258,6 +318,9 @@ export const useDataStore = defineStore('data', () => {
   const equipmentPendingRecords = ref<EquipmentRecord[]>(loadFromStorage(STORAGE_KEYS.EQUIPMENT_PENDING_RECORDS, defaultEquipmentPendingRecords))
   const equipmentApprovedRecords = ref<EquipmentRecord[]>(loadFromStorage(STORAGE_KEYS.EQUIPMENT_APPROVED_RECORDS, defaultEquipmentApprovedRecords))
   const equipmentRejectedRecords = ref<EquipmentRecord[]>(loadFromStorage(STORAGE_KEYS.EQUIPMENT_REJECTED_RECORDS, defaultEquipmentRejectedRecords))
+  const personnelPendingRecords = ref<PersonnelRecord[]>(loadFromStorage(STORAGE_KEYS.PERSONNEL_PENDING_RECORDS, defaultPersonnelPendingRecords))
+  const personnelApprovedRecords = ref<PersonnelRecord[]>(loadFromStorage(STORAGE_KEYS.PERSONNEL_APPROVED_RECORDS, defaultPersonnelApprovedRecords))
+  const personnelRejectedRecords = ref<PersonnelRecord[]>(loadFromStorage(STORAGE_KEYS.PERSONNEL_REJECTED_RECORDS, defaultPersonnelRejectedRecords))
 
   const operator = ref('管理员')
 
@@ -301,6 +364,9 @@ export const useDataStore = defineStore('data', () => {
     saveToStorage(STORAGE_KEYS.EQUIPMENT_PENDING_RECORDS, equipmentPendingRecords.value)
     saveToStorage(STORAGE_KEYS.EQUIPMENT_APPROVED_RECORDS, equipmentApprovedRecords.value)
     saveToStorage(STORAGE_KEYS.EQUIPMENT_REJECTED_RECORDS, equipmentRejectedRecords.value)
+    saveToStorage(STORAGE_KEYS.PERSONNEL_PENDING_RECORDS, personnelPendingRecords.value)
+    saveToStorage(STORAGE_KEYS.PERSONNEL_APPROVED_RECORDS, personnelApprovedRecords.value)
+    saveToStorage(STORAGE_KEYS.PERSONNEL_REJECTED_RECORDS, personnelRejectedRecords.value)
   }
 
   const addPendingRecord = (record: Omit<UnitRecord, 'id' | 'createTime' | 'status'>) => {
@@ -752,6 +818,162 @@ export const useDataStore = defineStore('data', () => {
            equipmentRejectedRecords.value.find(r => r.id === id)
   }
 
+  const addPersonnelRecord = (record: Omit<PersonnelRecord, 'id' | 'createTime' | 'updateTime' | 'status' | 'activeStatus'>) => {
+    const now = new Date().toLocaleString('zh-CN', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    }).replace(/\//g, '-')
+
+    const newRecord: PersonnelRecord = {
+      ...record,
+      id: 'p' + Date.now(),
+      status: 'pending',
+      activeStatus: 'active',
+      createTime: now,
+      updateTime: now,
+    }
+    personnelPendingRecords.value.unshift(newRecord)
+    saveRecords()
+    addOperationLog('create_equipment', newRecord.id, newRecord.name, `创建人员记录待审核：${newRecord.name}`)
+    return newRecord
+  }
+
+  const updatePersonnelRecord = (id: string, record: Partial<Omit<PersonnelRecord, 'id' | 'createTime' | 'status' | 'activeStatus'>>) => {
+    const pendingIndex = personnelPendingRecords.value.findIndex(r => r.id === id)
+    if (pendingIndex !== -1) {
+      const updateTime = new Date().toLocaleString('zh-CN', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+      }).replace(/\//g, '-')
+
+      personnelPendingRecords.value[pendingIndex] = {
+        ...personnelPendingRecords.value[pendingIndex],
+        ...record,
+        updateTime,
+      }
+      saveRecords()
+      const personnel = personnelPendingRecords.value[pendingIndex]
+      addOperationLog('update_equipment', personnel.id, personnel.name, `更新人员待审核记录：${personnel.name}`)
+      return personnel
+    }
+
+    const rejectedIndex = personnelRejectedRecords.value.findIndex(r => r.id === id)
+    if (rejectedIndex !== -1) {
+      const updateTime = new Date().toLocaleString('zh-CN', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+      }).replace(/\//g, '-')
+
+      personnelRejectedRecords.value[rejectedIndex] = {
+        ...personnelRejectedRecords.value[rejectedIndex],
+        ...record,
+        updateTime,
+        status: 'pending',
+        rejectReason: undefined,
+      }
+      personnelPendingRecords.value.unshift(personnelRejectedRecords.value.splice(rejectedIndex, 1)[0])
+      saveRecords()
+      const personnel = personnelPendingRecords.value[0]
+      addOperationLog('update_equipment', personnel.id, personnel.name, `修改驳回人员并重新提交审核：${personnel.name}`)
+      return personnel
+    }
+
+    return null
+  }
+
+  const approvePersonnelRecord = (id: string) => {
+    const index = personnelPendingRecords.value.findIndex(r => r.id === id)
+    if (index !== -1) {
+      const record = personnelPendingRecords.value.splice(index, 1)[0]
+      record.status = 'approved'
+      personnelApprovedRecords.value.unshift(record)
+      saveRecords()
+      addOperationLog('approve', record.id, record.name, `人员审核通过：${record.name}`)
+      return record
+    }
+    return null
+  }
+
+  const rejectPersonnelRecord = (id: string, reason?: string) => {
+    const index = personnelPendingRecords.value.findIndex(r => r.id === id)
+    if (index !== -1) {
+      const record = personnelPendingRecords.value.splice(index, 1)[0]
+      record.status = 'rejected'
+      record.rejectReason = reason
+      personnelRejectedRecords.value.unshift(record)
+      saveRecords()
+      addOperationLog('reject', record.id, record.name, `人员审核驳回：${record.name}，原因：${reason || '无'}`)
+      return record
+    }
+    return null
+  }
+
+  const deletePersonnelRecord = (id: string) => {
+    const pendingIndex = personnelPendingRecords.value.findIndex(r => r.id === id)
+    if (pendingIndex !== -1) {
+      const record = personnelPendingRecords.value.splice(pendingIndex, 1)[0]
+      saveRecords()
+      addOperationLog('delete_equipment', record.id, record.name, `删除人员待审核记录：${record.name}`)
+      return record
+    }
+
+    const approvedIndex = personnelApprovedRecords.value.findIndex(r => r.id === id)
+    if (approvedIndex !== -1) {
+      const record = personnelApprovedRecords.value.splice(approvedIndex, 1)[0]
+      saveRecords()
+      addOperationLog('delete_equipment', record.id, record.name, `删除人员记录：${record.name}`)
+      return record
+    }
+
+    const rejectedIndex = personnelRejectedRecords.value.findIndex(r => r.id === id)
+    if (rejectedIndex !== -1) {
+      const record = personnelRejectedRecords.value.splice(rejectedIndex, 1)[0]
+      saveRecords()
+      addOperationLog('delete_equipment', record.id, record.name, `删除人员驳回记录：${record.name}`)
+      return record
+    }
+
+    return null
+  }
+
+  const togglePersonnelActiveStatus = (id: string) => {
+    const record = personnelApprovedRecords.value.find(r => r.id === id)
+    if (record) {
+      const newStatus = record.activeStatus === 'active' ? 'inactive' : 'active'
+      record.activeStatus = newStatus
+      record.updateTime = new Date().toLocaleString('zh-CN', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+      }).replace(/\//g, '-')
+      saveRecords()
+      addOperationLog('update_equipment', record.id, record.name, `人员启用状态变更为：${newStatus === 'active' ? '启用' : '停用'}`)
+      return record
+    }
+    return null
+  }
+
+  const getPersonnelById = (id: string) => {
+    return personnelPendingRecords.value.find(r => r.id === id) ||
+           personnelApprovedRecords.value.find(r => r.id === id) ||
+           personnelRejectedRecords.value.find(r => r.id === id)
+  }
+
   return {
     pendingRecords,
     approvedRecords,
@@ -764,6 +986,9 @@ export const useDataStore = defineStore('data', () => {
     equipmentPendingRecords,
     equipmentApprovedRecords,
     equipmentRejectedRecords,
+    personnelPendingRecords,
+    personnelApprovedRecords,
+    personnelRejectedRecords,
     operator,
     addPendingRecord,
     approveRecord,
@@ -789,5 +1014,12 @@ export const useDataStore = defineStore('data', () => {
     deleteEquipmentRecord,
     toggleEquipmentActiveStatus,
     getEquipmentById,
+    addPersonnelRecord,
+    updatePersonnelRecord,
+    approvePersonnelRecord,
+    rejectPersonnelRecord,
+    deletePersonnelRecord,
+    togglePersonnelActiveStatus,
+    getPersonnelById,
   }
 })
