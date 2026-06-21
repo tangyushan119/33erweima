@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Building2, FileText } from 'lucide-vue-next'
+import { Building2, FileText, Car } from 'lucide-vue-next'
 import { useRouter, useRoute } from 'vue-router'
 
 const router = useRouter()
@@ -11,6 +11,11 @@ const sideMenuItems = [
     name: '单位录入',
     icon: Building2,
     path: '/data-collection/unit-entry',
+  },
+  {
+    name: '车辆录入',
+    icon: Car,
+    path: '/data-collection/vehicle-entry',
   },
   {
     name: '操作日志',
@@ -61,7 +66,7 @@ const handleMenuClick = (path: string) => {
       <div class="p-4 border-t border-gray-200">
         <div class="bg-blue-50 rounded-lg p-3">
           <p class="text-xs text-blue-600 font-medium mb-1">快捷操作</p>
-          <p class="text-xs text-blue-500">点击单位录入开始采集数据</p>
+          <p class="text-xs text-blue-500">点击单位或车辆录入开始采集数据</p>
         </div>
       </div>
     </div>

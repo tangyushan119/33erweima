@@ -27,12 +27,31 @@ export interface QrCodeRecord {
 
 export interface OperationLog {
   id: string
-  operationType: 'create' | 'approve' | 'reject' | 'batch_approve' | 'batch_reject' | 'scan' | 'toggle_qrcode'
+  operationType: 'create' | 'approve' | 'reject' | 'batch_approve' | 'batch_reject' | 'scan' | 'toggle_qrcode' | 'create_vehicle' | 'update_vehicle' | 'delete_vehicle'
   targetId: string
   targetName: string
   detail: string
   operator: string
   createTime: string
+}
+
+export interface VehicleRecord {
+  id: string
+  plateNumber: string
+  vehicleType: string
+  vehicleBrand: string
+  vehicleModel: string
+  vehicleColor: string
+  engineNumber: string
+  vin: string
+  registerDate: string
+  ownerName: string
+  ownerPhone: string
+  unitId: string
+  unitName: string
+  status: 'active' | 'inactive'
+  createTime: string
+  updateTime: string
 }
 
 const STORAGE_KEYS = {
@@ -41,6 +60,7 @@ const STORAGE_KEYS = {
   REJECTED_RECORDS: 'unit_rejected_records',
   QRCODE_RECORDS: 'qrcode_records',
   OPERATION_LOGS: 'operation_logs',
+  VEHICLE_RECORDS: 'vehicle_records',
 }
 
 function loadFromStorage<T>(key: string, defaultValue: T): T {
@@ -127,12 +147,52 @@ const defaultQrCodeRecords: QrCodeRecord[] = [
   },
 ]
 
+const defaultVehicleRecords: VehicleRecord[] = [
+  {
+    id: 'v1',
+    plateNumber: '京A12345',
+    vehicleType: '小型客车',
+    vehicleBrand: '奔驰',
+    vehicleModel: 'C级',
+    vehicleColor: '黑色',
+    engineNumber: 'M2749201234567',
+    vin: 'WDDWF4DBXJR123456',
+    registerDate: '2024-01-15',
+    ownerName: '张三',
+    ownerPhone: '13800138000',
+    unitId: '3',
+    unitName: '演示企业管理有限公司',
+    status: 'active',
+    createTime: '2026-06-20 11:00:00',
+    updateTime: '2026-06-20 11:00:00',
+  },
+  {
+    id: 'v2',
+    plateNumber: '粤B67890',
+    vehicleType: '大型货车',
+    vehicleBrand: '东风',
+    vehicleModel: '天龙KL',
+    vehicleColor: '红色',
+    engineNumber: 'DCI1142012345678',
+    vin: 'LGAX5C13XJM123456',
+    registerDate: '2023-06-20',
+    ownerName: '李四',
+    ownerPhone: '13900139000',
+    unitId: '4',
+    unitName: '示范信息技术有限公司',
+    status: 'active',
+    createTime: '2026-06-19 14:30:00',
+    updateTime: '2026-06-19 14:30:00',
+  },
+]
+
 export const useDataStore = defineStore('data', () => {
   const pendingRecords = ref<UnitRecord[]>(loadFromStorage(STORAGE_KEYS.PENDING_RECORDS, defaultPendingRecords))
   const approvedRecords = ref<UnitRecord[]>(loadFromStorage(STORAGE_KEYS.APPROVED_RECORDS, defaultApprovedRecords))
   const rejectedRecords = ref<UnitRecord[]>(loadFromStorage(STORAGE_KEYS.REJECTED_RECORDS, []))
   const qrCodeRecords = ref<QrCodeRecord[]>(loadFromStorage(STORAGE_KEYS.QRCODE_RECORDS, defaultQrCodeRecords))
   const operationLogs = ref<OperationLog[]>(loadFromStorage(STORAGE_KEYS.OPERATION_LOGS, []))
+  const vehicleRecords = ref<VehicleRecord[]>(loadFromStorage(STORAGE_KEYS.VEHICLE_RECORDS, defaultVehicleRecords))
 
   const operator = ref('管理员')
 
@@ -170,6 +230,7 @@ export const useDataStore = defineStore('data', () => {
     saveToStorage(STORAGE_KEYS.APPROVED_RECORDS, approvedRecords.value)
     saveToStorage(STORAGE_KEYS.REJECTED_RECORDS, rejectedRecords.value)
     saveToStorage(STORAGE_KEYS.QRCODE_RECORDS, qrCodeRecords.value)
+    saveToStorage(STORAGE_KEYS.VEHICLE_RECORDS, vehicleRecords.value)
   }
 
   const addPendingRecord = (record: Omit<UnitRecord, 'id' | 'createTime' | 'status'>) => {
@@ -309,12 +370,96 @@ export const useDataStore = defineStore('data', () => {
     saveToStorage(STORAGE_KEYS.OPERATION_LOGS, operationLogs.value)
   }
 
+  const addVehicleRecord = (record: Omit<VehicleRecord, 'id' | 'createTime' | 'updateTime' | 'status'>) => {
+    const now = new Date().toLocaleString('zh-CN', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    }).replace(/\//g, '-')
+
+    const newRecord: VehicleRecord = {
+      ...record,
+      id: 'v' + Date.now(),
+      status: 'active',
+      createTime: now,
+      updateTime: now,
+    }
+    vehicleRecords.value.unshift(newRecord)
+    saveRecords()
+    addOperationLog('create_vehicle', newRecord.id, newRecord.plateNumber, `创建车辆记录：${newRecord.plateNumber}`)
+    return newRecord
+  }
+
+  const updateVehicleRecord = (id: string, record: Partial<Omit<VehicleRecord, 'id' | 'createTime' | 'status'>>) => {
+    const index = vehicleRecords.value.findIndex(r => r.id === id)
+    if (index !== -1) {
+      const updateTime = new Date().toLocaleString('zh-CN', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+      }).replace(/\//g, '-')
+
+      vehicleRecords.value[index] = {
+        ...vehicleRecords.value[index],
+        ...record,
+        updateTime,
+      }
+      saveRecords()
+      const vehicle = vehicleRecords.value[index]
+      addOperationLog('update_vehicle', vehicle.id, vehicle.plateNumber, `更新车辆记录：${vehicle.plateNumber}`)
+      return vehicle
+    }
+    return null
+  }
+
+  const deleteVehicleRecord = (id: string) => {
+    const index = vehicleRecords.value.findIndex(r => r.id === id)
+    if (index !== -1) {
+      const record = vehicleRecords.value.splice(index, 1)[0]
+      saveRecords()
+      addOperationLog('delete_vehicle', record.id, record.plateNumber, `删除车辆记录：${record.plateNumber}`)
+      return record
+    }
+    return null
+  }
+
+  const toggleVehicleStatus = (id: string) => {
+    const record = vehicleRecords.value.find(r => r.id === id)
+    if (record) {
+      const newStatus = record.status === 'active' ? 'inactive' : 'active'
+      record.status = newStatus
+      record.updateTime = new Date().toLocaleString('zh-CN', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+      }).replace(/\//g, '-')
+      saveRecords()
+      addOperationLog('update_vehicle', record.id, record.plateNumber, `车辆状态变更为：${newStatus === 'active' ? '启用' : '停用'}`)
+      return record
+    }
+    return null
+  }
+
+  const getVehicleById = (id: string) => {
+    return vehicleRecords.value.find(r => r.id === id)
+  }
+
   return {
     pendingRecords,
     approvedRecords,
     rejectedRecords,
     qrCodeRecords,
     operationLogs,
+    vehicleRecords,
     operator,
     addPendingRecord,
     approveRecord,
@@ -326,5 +471,10 @@ export const useDataStore = defineStore('data', () => {
     toggleQrCodeStatus,
     getQrCodeById,
     clearLogs,
+    addVehicleRecord,
+    updateVehicleRecord,
+    deleteVehicleRecord,
+    toggleVehicleStatus,
+    getVehicleById,
   }
 })

@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import UnitEntry from '@/pages/UnitEntry.vue'
+import VehicleEntry from '@/pages/VehicleEntry.vue'
 import DataVerify from '@/pages/DataVerify.vue'
 import DataApplication from '@/pages/DataApplication.vue'
 import QrCodeGenerator from '@/pages/QrCodeGenerator.vue'
@@ -19,6 +20,11 @@ const routes: RouteRecordRaw[] = [
     path: '/data-collection/unit-entry',
     name: 'unitEntry',
     component: UnitEntry,
+  },
+  {
+    path: '/data-collection/vehicle-entry',
+    name: 'vehicleEntry',
+    component: VehicleEntry,
   },
   {
     path: '/data-verify',
