@@ -74,6 +74,10 @@ export interface EquipmentRecord {
   userName: string
   userPhone: string
   location: string
+  overallImage?: string
+  overallImageId?: string
+  nameplateImage?: string
+  nameplateImageId?: string
   status: 'pending' | 'approved' | 'rejected'
   activeStatus: 'active' | 'inactive'
   createTime: string

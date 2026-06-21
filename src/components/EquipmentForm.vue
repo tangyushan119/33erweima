@@ -2,6 +2,7 @@
 import { ref, reactive, watch } from 'vue'
 import { Send, RotateCcw, CheckCircle } from 'lucide-vue-next'
 import { useDataStore } from '@/stores/dataStore'
+import { checkImageDuplicate, type ImageFields } from '@/lib/imageUtils'
 
 interface EquipmentFormData {
   equipmentName: string
@@ -16,6 +17,10 @@ interface EquipmentFormData {
   userName: string
   userPhone: string
   location: string
+  overallImage?: string
+  overallImageId?: string
+  nameplateImage?: string
+  nameplateImageId?: string
 }
 
 const emit = defineEmits<{
@@ -53,7 +58,65 @@ const formData = reactive<EquipmentFormData>({
   userName: '',
   userPhone: '',
   location: '',
+  overallImage: '',
+  overallImageId: '',
+  nameplateImage: '',
+  nameplateImageId: '',
 })
+
+const imageUploadRefs = {
+  overallImage: ref<HTMLInputElement | null>(null),
+  nameplateImage: ref<HTMLInputElement | null>(null),
+}
+
+const imageLabels: Record<string, string> = {
+  overallImage: '装备整体实拍照片',
+  nameplateImage: '装备铭牌照片',
+}
+
+const getImageIdField = (field: keyof EquipmentFormData): keyof EquipmentFormData => {
+  return `${field}Id` as keyof EquipmentFormData
+}
+
+const handleImageUpload = (field: keyof EquipmentFormData, event: Event) => {
+  const target = event.target as HTMLInputElement
+  const file = target.files?.[0]
+  
+  if (!file) return
+  
+  if (!file.type.startsWith('image/')) {
+    alert('请选择图片文件')
+    return
+  }
+  
+  if (checkImageDuplicate(file, formData as ImageFields, field)) {
+    alert('该图片已上传，请选择其他图片')
+    target.value = ''
+    return
+  }
+  
+  const fileIdentifier = `${file.name}-${file.size}-${file.lastModified}`
+  
+  const reader = new FileReader()
+  reader.onload = (e) => {
+    formData[field] = e.target?.result as string
+    const idField = getImageIdField(field)
+    formData[idField] = fileIdentifier
+  }
+  reader.readAsDataURL(file)
+  
+  target.value = ''
+}
+
+const removeImage = (field: keyof EquipmentFormData) => {
+  formData[field] = ''
+  const idField = getImageIdField(field)
+  formData[idField] = ''
+  const input = imageUploadRefs[field as keyof typeof imageUploadRefs]
+  if (input.value) {
+    input.value.value = ''
+  }
+}
 
 const errors = reactive<Partial<EquipmentFormData>>({})
 const showSuccess = ref(false)
@@ -160,6 +223,16 @@ const handleReset = () => {
   formData.userName = ''
   formData.userPhone = ''
   formData.location = ''
+  formData.overallImage = ''
+  formData.overallImageId = ''
+  formData.nameplateImage = ''
+  formData.nameplateImageId = ''
+  Object.keys(imageUploadRefs).forEach(key => {
+    const input = imageUploadRefs[key as keyof typeof imageUploadRefs]
+    if (input.value) {
+      input.value.value = ''
+    }
+  })
   Object.keys(errors).forEach(key => delete errors[key as keyof EquipmentFormData])
   emit('reset')
 }
@@ -342,6 +415,50 @@ const handleReset = () => {
           />
           <p v-if="errors.userPhone" class="text-sm text-red-500">{{ errors.userPhone }}</p>
         </div>
+      </div>
+
+      <div class="space-y-4">
+        <label class="block text-sm font-medium text-gray-700">装备资料存档照片</label>
+        <div class="grid grid-cols-2 gap-4">
+          <div
+            v-for="(label, field) in imageLabels"
+            :key="field"
+            class="relative group"
+          >
+            <div
+              v-if="formData[field as keyof EquipmentFormData]"
+              class="relative aspect-video rounded-lg overflow-hidden border-2 border-dashed border-gray-300 cursor-pointer hover:border-blue-500 transition-colors"
+              @click="removeImage(field as keyof EquipmentFormData)"
+            >
+              <img
+                :src="formData[field as keyof EquipmentFormData]"
+                :alt="label"
+                class="w-full h-full object-cover"
+              />
+              <div class="absolute inset-0 bg-black bg-opacity-40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                <span class="text-white text-sm">点击删除</span>
+              </div>
+            </div>
+            <div
+              v-else
+              class="aspect-video rounded-lg border-2 border-dashed border-gray-300 flex flex-col items-center justify-center cursor-pointer hover:border-blue-500 hover:bg-blue-50 transition-all"
+              @click="imageUploadRefs[field as keyof typeof imageUploadRefs].value?.click()"
+            >
+              <svg class="w-8 h-8 text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+              <span class="text-sm text-gray-500">{{ label }}</span>
+            </div>
+            <input
+              :ref="(el) => { imageUploadRefs[field as keyof typeof imageUploadRefs].value = el as HTMLInputElement }"
+              type="file"
+              accept="image/*"
+              class="hidden"
+              @change="handleImageUpload(field as keyof EquipmentFormData, $event)"
+            />
+          </div>
+        </div>
+        <p class="text-xs text-gray-500">支持上传装备整体实拍照片和装备铭牌照片，用于完善装备资料存档素材</p>
       </div>
 
       <div class="flex items-center justify-end gap-4 pt-4">

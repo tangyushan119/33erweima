@@ -17,6 +17,10 @@ interface EquipmentFormData {
   userName: string
   userPhone: string
   location: string
+  overallImage?: string
+  overallImageId?: string
+  nameplateImage?: string
+  nameplateImageId?: string
 }
 
 const dataStore = useDataStore()

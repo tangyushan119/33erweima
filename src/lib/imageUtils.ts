@@ -11,6 +11,10 @@ export interface ImageFields {
   backImageId?: string
   leftImageId?: string
   rightImageId?: string
+  overallImage?: string
+  nameplateImage?: string
+  overallImageId?: string
+  nameplateImageId?: string
 }
 
 const getImageIdField = (field: keyof ImageFields): keyof ImageFields => {
@@ -23,7 +27,7 @@ export const checkImageDuplicate = (
   excludeField?: keyof ImageFields
 ): boolean => {
   const targetIdentifier = getFileIdentifier(file)
-  const imageFieldNames: (keyof ImageFields)[] = ['frontImage', 'backImage', 'leftImage', 'rightImage']
+  const imageFieldNames: (keyof ImageFields)[] = ['frontImage', 'backImage', 'leftImage', 'rightImage', 'overallImage', 'nameplateImage']
   
   for (const field of imageFieldNames) {
     if (field === excludeField) continue
