@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { ClipboardCheck, CheckCircle, XCircle, Search, Filter, Clock, User, MapPin, CheckSquare, Square, Download, AlertCircle, Car, Building2 } from 'lucide-vue-next'
-import { useDataStore, type VehicleRecord } from '@/stores/dataStore'
+import { ClipboardCheck, CheckCircle, XCircle, Search, Filter, Clock, User, MapPin, CheckSquare, Square, Download, AlertCircle, Car, Building2, Wrench } from 'lucide-vue-next'
+import { useDataStore, type VehicleRecord, type EquipmentRecord } from '@/stores/dataStore'
 import { exportToExcel, exportToCsv, validateExportData, type ExportFieldConfig, type ExportValidationResult } from '@/lib/export'
 
 const searchKeyword = ref('')
@@ -14,8 +14,31 @@ const validationResult = ref<ExportValidationResult | null>(null)
 
 const dataStore = useDataStore()
 
-interface AuditRecord extends VehicleRecord {
-  recordType?: 'vehicle' | 'unit'
+interface AuditRecord extends Record<string, unknown> {
+  id: string
+  status: 'pending' | 'approved' | 'rejected'
+  recordType?: 'vehicle' | 'unit' | 'equipment'
+  unitName?: string
+  plateNumber?: string
+  creditCode?: string
+  vin?: string
+  contactName?: string
+  contactPhone?: string
+  ownerName?: string
+  ownerPhone?: string
+  address?: string
+  vehicleType?: string
+  vehicleBrand?: string
+  vehicleModel?: string
+  equipmentName?: string
+  equipmentCode?: string
+  equipmentType?: string
+  specification?: string
+  manufacturer?: string
+  userName?: string
+  userPhone?: string
+  location?: string
+  createTime?: string
 }
 
 const allRecords = computed((): AuditRecord[] => [
@@ -25,6 +48,9 @@ const allRecords = computed((): AuditRecord[] => [
   ...dataStore.vehiclePendingRecords.map(r => ({ ...r, recordType: 'vehicle' as const })),
   ...dataStore.vehicleApprovedRecords.map(r => ({ ...r, recordType: 'vehicle' as const })),
   ...dataStore.vehicleRejectedRecords.map(r => ({ ...r, recordType: 'vehicle' as const })),
+  ...dataStore.equipmentPendingRecords.map(r => ({ ...r, recordType: 'equipment' as const })),
+  ...dataStore.equipmentApprovedRecords.map(r => ({ ...r, recordType: 'equipment' as const })),
+  ...dataStore.equipmentRejectedRecords.map(r => ({ ...r, recordType: 'equipment' as const })),
 ])
 
 const statusOptions = [
@@ -38,6 +64,7 @@ const typeOptions = [
   { value: 'all', label: '全部' },
   { value: 'unit', label: '单位' },
   { value: 'vehicle', label: '车辆' },
+  { value: 'equipment', label: '装备' },
 ]
 
 const filteredRecords = computed(() => {
@@ -55,14 +82,19 @@ const filteredRecords = computed(() => {
     const keyword = searchKeyword.value.toLowerCase()
     result = result.filter(record => {
       if (record.recordType === 'vehicle') {
-        return record.plateNumber.toLowerCase().includes(keyword) ||
-               record.vehicleBrand.toLowerCase().includes(keyword) ||
-               record.ownerName.toLowerCase().includes(keyword) ||
-               record.unitName.toLowerCase().includes(keyword)
+        return record.plateNumber?.toLowerCase().includes(keyword) ||
+               record.vehicleBrand?.toLowerCase().includes(keyword) ||
+               record.ownerName?.toLowerCase().includes(keyword) ||
+               record.unitName?.toLowerCase().includes(keyword)
+      } else if (record.recordType === 'equipment') {
+        return record.equipmentName?.toLowerCase().includes(keyword) ||
+               record.equipmentCode?.toLowerCase().includes(keyword) ||
+               record.userName?.toLowerCase().includes(keyword) ||
+               record.unitName?.toLowerCase().includes(keyword)
       } else {
-        return record.unitName.toLowerCase().includes(keyword) ||
-               record.contactName.toLowerCase().includes(keyword) ||
-               record.creditCode.toLowerCase().includes(keyword)
+        return record.unitName?.toLowerCase().includes(keyword) ||
+               record.contactName?.toLowerCase().includes(keyword) ||
+               record.creditCode?.toLowerCase().includes(keyword)
       }
     })
   }
@@ -71,7 +103,7 @@ const filteredRecords = computed(() => {
 })
 
 const pendingCount = computed(() => 
-  dataStore.pendingRecords.length + dataStore.vehiclePendingRecords.length
+  dataStore.pendingRecords.length + dataStore.vehiclePendingRecords.length + dataStore.equipmentPendingRecords.length
 )
 
 const pendingRecords = computed(() => {
@@ -89,20 +121,24 @@ const handleFilterChange = () => {
   selectedIds.value = []
 }
 
-const handleApprove = (id: string, recordType: 'unit' | 'vehicle') => {
+const handleApprove = (id: string, recordType: 'unit' | 'vehicle' | 'equipment') => {
   if (recordType === 'vehicle') {
     dataStore.approveVehicleRecord(id)
+  } else if (recordType === 'equipment') {
+    dataStore.approveEquipmentRecord(id)
   } else {
     dataStore.approveRecord(id)
   }
   selectedIds.value = selectedIds.value.filter(i => i !== id)
 }
 
-const handleReject = (id: string, recordType: 'unit' | 'vehicle') => {
+const handleReject = (id: string, recordType: 'unit' | 'vehicle' | 'equipment') => {
   const reason = prompt('请输入驳回原因：')
   if (reason !== null) {
     if (recordType === 'vehicle') {
       dataStore.rejectVehicleRecord(id, reason)
+    } else if (recordType === 'equipment') {
+      dataStore.rejectEquipmentRecord(id, reason)
     } else {
       dataStore.rejectRecord(id)
     }
@@ -131,10 +167,13 @@ const handleBatchApprove = () => {
   if (selectedIds.value.length === 0) return
   const unitIds: string[] = []
   const vehicleIds: string[] = []
+  const equipmentIds: string[] = []
   
   pendingRecords.value.forEach(r => {
     if (r.recordType === 'vehicle') {
       vehicleIds.push(r.id)
+    } else if (r.recordType === 'equipment') {
+      equipmentIds.push(r.id)
     } else {
       unitIds.push(r.id)
     }
@@ -145,6 +184,9 @@ const handleBatchApprove = () => {
   }
   if (vehicleIds.length > 0) {
     vehicleIds.forEach(id => dataStore.approveVehicleRecord(id))
+  }
+  if (equipmentIds.length > 0) {
+    equipmentIds.forEach(id => dataStore.approveEquipmentRecord(id))
   }
   
   selectedIds.value = []
@@ -157,10 +199,13 @@ const handleBatchReject = () => {
   
   const unitIds: string[] = []
   const vehicleIds: string[] = []
+  const equipmentIds: string[] = []
   
   pendingRecords.value.forEach(r => {
     if (r.recordType === 'vehicle') {
       vehicleIds.push(r.id)
+    } else if (r.recordType === 'equipment') {
+      equipmentIds.push(r.id)
     } else {
       unitIds.push(r.id)
     }
@@ -171,6 +216,9 @@ const handleBatchReject = () => {
   }
   if (vehicleIds.length > 0) {
     vehicleIds.forEach(id => dataStore.rejectVehicleRecord(id, reason))
+  }
+  if (equipmentIds.length > 0) {
+    equipmentIds.forEach(id => dataStore.rejectEquipmentRecord(id, reason))
   }
   
   selectedIds.value = []
@@ -203,16 +251,20 @@ const getStatusText = (status: string) => {
 }
 
 const exportFields: ExportFieldConfig[] = [
-  { key: 'recordType', label: '记录类型', formatter: (v) => (v === 'vehicle' ? '车辆' : '单位') },
+  { key: 'recordType', label: '记录类型', formatter: (v) => (v === 'vehicle' ? '车辆' : v === 'equipment' ? '装备' : '单位') },
   { key: 'unitName', label: '单位名称' },
   { key: 'plateNumber', label: '车牌号' },
+  { key: 'equipmentName', label: '装备名称' },
   { key: 'creditCode', label: '统一社会信用代码' },
-  { key: 'contactName', label: '联系人/车主' },
-  { key: 'contactPhone', label: '联系电话/车主电话' },
-  { key: 'address', label: '地址' },
+  { key: 'equipmentCode', label: '装备编号' },
+  { key: 'contactName', label: '联系人/车主/使用人' },
+  { key: 'contactPhone', label: '联系电话' },
+  { key: 'address', label: '地址/存放位置' },
   { key: 'vehicleType', label: '车辆类型' },
   { key: 'vehicleBrand', label: '车辆品牌' },
   { key: 'vehicleModel', label: '车辆型号' },
+  { key: 'equipmentType', label: '装备类型' },
+  { key: 'specification', label: '规格型号' },
   { key: 'createTime', label: '创建时间' },
   { key: 'status', label: '状态', formatter: (v) => getStatusText(v as string) },
 ]
@@ -382,28 +434,29 @@ const performExport = () => {
               <td class="py-4 px-4">
                 <div class="flex items-center gap-2">
                   <Building2 v-if="record.recordType === 'unit'" class="w-4 h-4 text-blue-500" />
-                  <Car v-else class="w-4 h-4 text-green-500" />
-                  <span class="text-sm font-medium text-gray-700">{{ record.recordType === 'unit' ? '单位' : '车辆' }}</span>
+                  <Car v-else-if="record.recordType === 'vehicle'" class="w-4 h-4 text-green-500" />
+                  <Wrench v-else class="w-4 h-4 text-purple-500" />
+                  <span class="text-sm font-medium text-gray-700">{{ record.recordType === 'unit' ? '单位' : record.recordType === 'vehicle' ? '车辆' : '装备' }}</span>
                 </div>
               </td>
               <td class="py-4 px-4">
                 <span class="text-sm font-medium text-gray-800">
-                  {{ record.recordType === 'vehicle' ? record.plateNumber : record.unitName }}
+                  {{ record.recordType === 'vehicle' ? record.plateNumber : record.recordType === 'equipment' ? record.equipmentName : record.unitName }}
                 </span>
               </td>
               <td class="py-4 px-4">
                 <span class="text-sm text-gray-600 font-mono">
-                  {{ record.recordType === 'vehicle' ? record.vin : record.creditCode }}
+                  {{ record.recordType === 'vehicle' ? record.vin : record.recordType === 'equipment' ? record.equipmentCode : record.creditCode }}
                 </span>
               </td>
               <td class="py-4 px-4">
                 <div class="flex items-center gap-2">
                   <User class="w-4 h-4 text-gray-400" />
                   <span class="text-sm text-gray-600">
-                    {{ record.recordType === 'vehicle' ? record.ownerName : record.contactName }}
+                    {{ record.recordType === 'vehicle' ? record.ownerName : record.recordType === 'equipment' ? record.userName : record.contactName }}
                   </span>
                   <span class="text-sm text-gray-400">
-                    {{ record.recordType === 'vehicle' ? record.ownerPhone : record.contactPhone }}
+                    {{ record.recordType === 'vehicle' ? record.ownerPhone : record.recordType === 'equipment' ? record.userPhone : record.contactPhone }}
                   </span>
                 </div>
               </td>
@@ -411,7 +464,7 @@ const performExport = () => {
                 <div class="flex items-center gap-2">
                   <MapPin class="w-4 h-4 text-gray-400" />
                   <span class="text-sm text-gray-600 truncate max-w-[200px]">
-                    {{ record.recordType === 'vehicle' ? (record.vehicleType + ' ' + record.vehicleBrand + ' ' + record.vehicleModel) : record.address }}
+                    {{ record.recordType === 'vehicle' ? (record.vehicleType + ' ' + record.vehicleBrand + ' ' + record.vehicleModel) : record.recordType === 'equipment' ? (record.equipmentType + ' ' + record.specification) : record.address }}
                   </span>
                 </div>
               </td>

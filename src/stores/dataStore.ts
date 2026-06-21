@@ -27,7 +27,7 @@ export interface QrCodeRecord {
 
 export interface OperationLog {
   id: string
-  operationType: 'create' | 'approve' | 'reject' | 'batch_approve' | 'batch_reject' | 'scan' | 'toggle_qrcode' | 'create_vehicle' | 'update_vehicle' | 'delete_vehicle' | 'submit_vehicle'
+  operationType: 'create' | 'approve' | 'reject' | 'batch_approve' | 'batch_reject' | 'scan' | 'toggle_qrcode' | 'create_vehicle' | 'update_vehicle' | 'delete_vehicle' | 'submit_vehicle' | 'create_equipment' | 'update_equipment' | 'delete_equipment'
   targetId: string
   targetName: string
   detail: string
@@ -56,6 +56,27 @@ export interface VehicleRecord {
   rejectReason?: string
 }
 
+export interface EquipmentRecord {
+  id: string
+  equipmentName: string
+  equipmentCode: string
+  equipmentType: string
+  specification: string
+  manufacturer: string
+  purchaseDate: string
+  price: string
+  unitId: string
+  unitName: string
+  userName: string
+  userPhone: string
+  location: string
+  status: 'pending' | 'approved' | 'rejected'
+  activeStatus: 'active' | 'inactive'
+  createTime: string
+  updateTime: string
+  rejectReason?: string
+}
+
 const STORAGE_KEYS = {
   PENDING_RECORDS: 'unit_pending_records',
   APPROVED_RECORDS: 'unit_approved_records',
@@ -65,6 +86,9 @@ const STORAGE_KEYS = {
   VEHICLE_PENDING_RECORDS: 'vehicle_pending_records',
   VEHICLE_APPROVED_RECORDS: 'vehicle_approved_records',
   VEHICLE_REJECTED_RECORDS: 'vehicle_rejected_records',
+  EQUIPMENT_PENDING_RECORDS: 'equipment_pending_records',
+  EQUIPMENT_APPROVED_RECORDS: 'equipment_approved_records',
+  EQUIPMENT_REJECTED_RECORDS: 'equipment_rejected_records',
 }
 
 function loadFromStorage<T>(key: string, defaultValue: T): T {
@@ -196,6 +220,32 @@ const defaultVehicleApprovedRecords: VehicleRecord[] = [
 
 const defaultVehicleRejectedRecords: VehicleRecord[] = []
 
+const defaultEquipmentPendingRecords: EquipmentRecord[] = []
+
+const defaultEquipmentApprovedRecords: EquipmentRecord[] = [
+  {
+    id: 'e1',
+    equipmentName: '笔记本电脑',
+    equipmentCode: 'EQ-2024-001',
+    equipmentType: '电子设备',
+    specification: 'ThinkPad X1 Carbon',
+    manufacturer: '联想',
+    purchaseDate: '2024-03-15',
+    price: '12000',
+    unitId: '3',
+    unitName: '演示企业管理有限公司',
+    userName: '张三',
+    userPhone: '13800138000',
+    location: 'A座1001室',
+    status: 'approved',
+    activeStatus: 'active',
+    createTime: '2026-06-20 10:00:00',
+    updateTime: '2026-06-20 10:00:00',
+  },
+]
+
+const defaultEquipmentRejectedRecords: EquipmentRecord[] = []
+
 export const useDataStore = defineStore('data', () => {
   const pendingRecords = ref<UnitRecord[]>(loadFromStorage(STORAGE_KEYS.PENDING_RECORDS, defaultPendingRecords))
   const approvedRecords = ref<UnitRecord[]>(loadFromStorage(STORAGE_KEYS.APPROVED_RECORDS, defaultApprovedRecords))
@@ -205,6 +255,9 @@ export const useDataStore = defineStore('data', () => {
   const vehiclePendingRecords = ref<VehicleRecord[]>(loadFromStorage(STORAGE_KEYS.VEHICLE_PENDING_RECORDS, defaultVehiclePendingRecords))
   const vehicleApprovedRecords = ref<VehicleRecord[]>(loadFromStorage(STORAGE_KEYS.VEHICLE_APPROVED_RECORDS, defaultVehicleApprovedRecords))
   const vehicleRejectedRecords = ref<VehicleRecord[]>(loadFromStorage(STORAGE_KEYS.VEHICLE_REJECTED_RECORDS, defaultVehicleRejectedRecords))
+  const equipmentPendingRecords = ref<EquipmentRecord[]>(loadFromStorage(STORAGE_KEYS.EQUIPMENT_PENDING_RECORDS, defaultEquipmentPendingRecords))
+  const equipmentApprovedRecords = ref<EquipmentRecord[]>(loadFromStorage(STORAGE_KEYS.EQUIPMENT_APPROVED_RECORDS, defaultEquipmentApprovedRecords))
+  const equipmentRejectedRecords = ref<EquipmentRecord[]>(loadFromStorage(STORAGE_KEYS.EQUIPMENT_REJECTED_RECORDS, defaultEquipmentRejectedRecords))
 
   const operator = ref('管理员')
 
@@ -245,6 +298,9 @@ export const useDataStore = defineStore('data', () => {
     saveToStorage(STORAGE_KEYS.VEHICLE_PENDING_RECORDS, vehiclePendingRecords.value)
     saveToStorage(STORAGE_KEYS.VEHICLE_APPROVED_RECORDS, vehicleApprovedRecords.value)
     saveToStorage(STORAGE_KEYS.VEHICLE_REJECTED_RECORDS, vehicleRejectedRecords.value)
+    saveToStorage(STORAGE_KEYS.EQUIPMENT_PENDING_RECORDS, equipmentPendingRecords.value)
+    saveToStorage(STORAGE_KEYS.EQUIPMENT_APPROVED_RECORDS, equipmentApprovedRecords.value)
+    saveToStorage(STORAGE_KEYS.EQUIPMENT_REJECTED_RECORDS, equipmentRejectedRecords.value)
   }
 
   const addPendingRecord = (record: Omit<UnitRecord, 'id' | 'createTime' | 'status'>) => {
@@ -540,6 +596,162 @@ export const useDataStore = defineStore('data', () => {
            vehicleRejectedRecords.value.find(r => r.id === id)
   }
 
+  const addEquipmentRecord = (record: Omit<EquipmentRecord, 'id' | 'createTime' | 'updateTime' | 'status' | 'activeStatus'>) => {
+    const now = new Date().toLocaleString('zh-CN', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    }).replace(/\//g, '-')
+
+    const newRecord: EquipmentRecord = {
+      ...record,
+      id: 'e' + Date.now(),
+      status: 'pending',
+      activeStatus: 'active',
+      createTime: now,
+      updateTime: now,
+    }
+    equipmentPendingRecords.value.unshift(newRecord)
+    saveRecords()
+    addOperationLog('create_equipment', newRecord.id, newRecord.equipmentName, `创建装备记录待审核：${newRecord.equipmentName}`)
+    return newRecord
+  }
+
+  const updateEquipmentRecord = (id: string, record: Partial<Omit<EquipmentRecord, 'id' | 'createTime' | 'status' | 'activeStatus'>>) => {
+    const pendingIndex = equipmentPendingRecords.value.findIndex(r => r.id === id)
+    if (pendingIndex !== -1) {
+      const updateTime = new Date().toLocaleString('zh-CN', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+      }).replace(/\//g, '-')
+
+      equipmentPendingRecords.value[pendingIndex] = {
+        ...equipmentPendingRecords.value[pendingIndex],
+        ...record,
+        updateTime,
+      }
+      saveRecords()
+      const equipment = equipmentPendingRecords.value[pendingIndex]
+      addOperationLog('update_equipment', equipment.id, equipment.equipmentName, `更新装备待审核记录：${equipment.equipmentName}`)
+      return equipment
+    }
+
+    const rejectedIndex = equipmentRejectedRecords.value.findIndex(r => r.id === id)
+    if (rejectedIndex !== -1) {
+      const updateTime = new Date().toLocaleString('zh-CN', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+      }).replace(/\//g, '-')
+
+      equipmentRejectedRecords.value[rejectedIndex] = {
+        ...equipmentRejectedRecords.value[rejectedIndex],
+        ...record,
+        updateTime,
+        status: 'pending',
+        rejectReason: undefined,
+      }
+      equipmentPendingRecords.value.unshift(equipmentRejectedRecords.value.splice(rejectedIndex, 1)[0])
+      saveRecords()
+      const equipment = equipmentPendingRecords.value[0]
+      addOperationLog('update_equipment', equipment.id, equipment.equipmentName, `修改驳回装备并重新提交审核：${equipment.equipmentName}`)
+      return equipment
+    }
+
+    return null
+  }
+
+  const approveEquipmentRecord = (id: string) => {
+    const index = equipmentPendingRecords.value.findIndex(r => r.id === id)
+    if (index !== -1) {
+      const record = equipmentPendingRecords.value.splice(index, 1)[0]
+      record.status = 'approved'
+      equipmentApprovedRecords.value.unshift(record)
+      saveRecords()
+      addOperationLog('approve', record.id, record.equipmentName, `装备审核通过：${record.equipmentName}`)
+      return record
+    }
+    return null
+  }
+
+  const rejectEquipmentRecord = (id: string, reason?: string) => {
+    const index = equipmentPendingRecords.value.findIndex(r => r.id === id)
+    if (index !== -1) {
+      const record = equipmentPendingRecords.value.splice(index, 1)[0]
+      record.status = 'rejected'
+      record.rejectReason = reason
+      equipmentRejectedRecords.value.unshift(record)
+      saveRecords()
+      addOperationLog('reject', record.id, record.equipmentName, `装备审核驳回：${record.equipmentName}，原因：${reason || '无'}`)
+      return record
+    }
+    return null
+  }
+
+  const deleteEquipmentRecord = (id: string) => {
+    const pendingIndex = equipmentPendingRecords.value.findIndex(r => r.id === id)
+    if (pendingIndex !== -1) {
+      const record = equipmentPendingRecords.value.splice(pendingIndex, 1)[0]
+      saveRecords()
+      addOperationLog('delete_equipment', record.id, record.equipmentName, `删除装备待审核记录：${record.equipmentName}`)
+      return record
+    }
+
+    const approvedIndex = equipmentApprovedRecords.value.findIndex(r => r.id === id)
+    if (approvedIndex !== -1) {
+      const record = equipmentApprovedRecords.value.splice(approvedIndex, 1)[0]
+      saveRecords()
+      addOperationLog('delete_equipment', record.id, record.equipmentName, `删除装备记录：${record.equipmentName}`)
+      return record
+    }
+
+    const rejectedIndex = equipmentRejectedRecords.value.findIndex(r => r.id === id)
+    if (rejectedIndex !== -1) {
+      const record = equipmentRejectedRecords.value.splice(rejectedIndex, 1)[0]
+      saveRecords()
+      addOperationLog('delete_equipment', record.id, record.equipmentName, `删除装备驳回记录：${record.equipmentName}`)
+      return record
+    }
+
+    return null
+  }
+
+  const toggleEquipmentActiveStatus = (id: string) => {
+    const record = equipmentApprovedRecords.value.find(r => r.id === id)
+    if (record) {
+      const newStatus = record.activeStatus === 'active' ? 'inactive' : 'active'
+      record.activeStatus = newStatus
+      record.updateTime = new Date().toLocaleString('zh-CN', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+      }).replace(/\//g, '-')
+      saveRecords()
+      addOperationLog('update_equipment', record.id, record.equipmentName, `装备启用状态变更为：${newStatus === 'active' ? '启用' : '停用'}`)
+      return record
+    }
+    return null
+  }
+
+  const getEquipmentById = (id: string) => {
+    return equipmentPendingRecords.value.find(r => r.id === id) ||
+           equipmentApprovedRecords.value.find(r => r.id === id) ||
+           equipmentRejectedRecords.value.find(r => r.id === id)
+  }
+
   return {
     pendingRecords,
     approvedRecords,
@@ -549,6 +761,9 @@ export const useDataStore = defineStore('data', () => {
     vehiclePendingRecords,
     vehicleApprovedRecords,
     vehicleRejectedRecords,
+    equipmentPendingRecords,
+    equipmentApprovedRecords,
+    equipmentRejectedRecords,
     operator,
     addPendingRecord,
     approveRecord,
@@ -567,5 +782,12 @@ export const useDataStore = defineStore('data', () => {
     deleteVehicleRecord,
     toggleVehicleActiveStatus,
     getVehicleById,
+    addEquipmentRecord,
+    updateEquipmentRecord,
+    approveEquipmentRecord,
+    rejectEquipmentRecord,
+    deleteEquipmentRecord,
+    toggleEquipmentActiveStatus,
+    getEquipmentById,
   }
 })
