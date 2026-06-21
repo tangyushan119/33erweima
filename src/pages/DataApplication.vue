@@ -4,6 +4,8 @@ import { BarChart3, Download, Search, TrendingUp, Users, Building2, Calendar, Al
 import { useDataStore } from '@/stores/dataStore'
 import FilterPanel, { type FilterConfig } from '@/components/FilterPanel.vue'
 import { exportToExcel, exportToCsv, validateExportData, type ExportFieldConfig, type ExportValidationResult } from '@/lib/export'
+import UnitBarChart from '@/components/UnitBarChart.vue'
+import UnitPieChart from '@/components/UnitPieChart.vue'
 
 const searchKeyword = ref('')
 const exportFormat = ref<'excel' | 'csv'>('excel')
@@ -215,6 +217,29 @@ const performExport = () => {
               }"
             />
           </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-2 gap-6 mb-6">
+      <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+        <h3 class="text-lg font-semibold text-gray-800 mb-4">单位数量统计（柱状图）</h3>
+        <div class="h-64">
+          <UnitBarChart 
+            :pending-count="dataStore.pendingRecords.length"
+            :approved-count="dataStore.approvedRecords.length"
+            :rejected-count="dataStore.rejectedRecords.length"
+          />
+        </div>
+      </div>
+      <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+        <h3 class="text-lg font-semibold text-gray-800 mb-4">单位状态分布（饼图）</h3>
+        <div class="h-64">
+          <UnitPieChart 
+            :pending-count="dataStore.pendingRecords.length"
+            :approved-count="dataStore.approvedRecords.length"
+            :rejected-count="dataStore.rejectedRecords.length"
+          />
         </div>
       </div>
     </div>
