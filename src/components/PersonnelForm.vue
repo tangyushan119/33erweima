@@ -290,3 +290,6 @@ const handleReset = () => {
           {{ isSubmitting ? '提交中...' : '提交审核' }}
         </button>
       </div>
+    </form>
+  </div>
+</template>
