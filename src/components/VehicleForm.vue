@@ -2,6 +2,7 @@
 import { ref, reactive, watch } from 'vue'
 import { Send, RotateCcw, CheckCircle } from 'lucide-vue-next'
 import { useDataStore } from '@/stores/dataStore'
+import { checkImageDuplicate, type ImageFields } from '@/lib/imageUtils'
 
 interface VehicleFormData {
   plateNumber: string
@@ -20,6 +21,10 @@ interface VehicleFormData {
   backImage?: string
   leftImage?: string
   rightImage?: string
+  frontImageId?: string
+  backImageId?: string
+  leftImageId?: string
+  rightImageId?: string
 }
 
 const emit = defineEmits<{
@@ -76,6 +81,10 @@ const formData = reactive<VehicleFormData>({
   backImage: '',
   leftImage: '',
   rightImage: '',
+  frontImageId: '',
+  backImageId: '',
+  leftImageId: '',
+  rightImageId: '',
 })
 
 const imageUploadRefs = {
@@ -92,6 +101,10 @@ const imageLabels: Record<string, string> = {
   rightImage: '车辆右侧',
 }
 
+const getImageIdField = (field: keyof VehicleFormData): keyof VehicleFormData => {
+  return `${field}Id` as keyof VehicleFormData
+}
+
 const handleImageUpload = (field: keyof VehicleFormData, event: Event) => {
   const target = event.target as HTMLInputElement
   const file = target.files?.[0]
@@ -103,15 +116,29 @@ const handleImageUpload = (field: keyof VehicleFormData, event: Event) => {
     return
   }
   
+  if (checkImageDuplicate(file, formData as ImageFields, field)) {
+    alert('该图片已上传，请选择其他图片')
+    target.value = ''
+    return
+  }
+  
+  const fileIdentifier = `${file.name}-${file.size}-${file.lastModified}`
+  
   const reader = new FileReader()
   reader.onload = (e) => {
     formData[field] = e.target?.result as string
+    const idField = getImageIdField(field)
+    formData[idField] = fileIdentifier
   }
   reader.readAsDataURL(file)
+  
+  target.value = ''
 }
 
 const removeImage = (field: keyof VehicleFormData) => {
   formData[field] = ''
+  const idField = getImageIdField(field)
+  formData[idField] = ''
   const input = imageUploadRefs[field as keyof typeof imageUploadRefs]
   if (input.value) {
     input.value.value = ''
