@@ -49,6 +49,10 @@ export interface VehicleRecord {
   ownerPhone: string
   unitId: string
   unitName: string
+  frontImage?: string
+  backImage?: string
+  leftImage?: string
+  rightImage?: string
   status: 'pending' | 'approved' | 'rejected'
   activeStatus: 'active' | 'inactive'
   createTime: string

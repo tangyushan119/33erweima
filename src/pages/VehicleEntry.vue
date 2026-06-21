@@ -17,6 +17,10 @@ interface VehicleFormData {
   ownerPhone: string
   unitId: string
   unitName: string
+  frontImage?: string
+  backImage?: string
+  leftImage?: string
+  rightImage?: string
 }
 
 const dataStore = useDataStore()

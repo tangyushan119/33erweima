@@ -16,6 +16,10 @@ interface VehicleFormData {
   ownerPhone: string
   unitId: string
   unitName: string
+  frontImage?: string
+  backImage?: string
+  leftImage?: string
+  rightImage?: string
 }
 
 const emit = defineEmits<{
@@ -68,7 +72,51 @@ const formData = reactive<VehicleFormData>({
   ownerPhone: '',
   unitId: '',
   unitName: '',
+  frontImage: '',
+  backImage: '',
+  leftImage: '',
+  rightImage: '',
 })
+
+const imageUploadRefs = {
+  frontImage: ref<HTMLInputElement | null>(null),
+  backImage: ref<HTMLInputElement | null>(null),
+  leftImage: ref<HTMLInputElement | null>(null),
+  rightImage: ref<HTMLInputElement | null>(null),
+}
+
+const imageLabels: Record<string, string> = {
+  frontImage: '车辆前方',
+  backImage: '车辆后方',
+  leftImage: '车辆左侧',
+  rightImage: '车辆右侧',
+}
+
+const handleImageUpload = (field: keyof VehicleFormData, event: Event) => {
+  const target = event.target as HTMLInputElement
+  const file = target.files?.[0]
+  
+  if (!file) return
+  
+  if (!file.type.startsWith('image/')) {
+    alert('请选择图片文件')
+    return
+  }
+  
+  const reader = new FileReader()
+  reader.onload = (e) => {
+    formData[field] = e.target?.result as string
+  }
+  reader.readAsDataURL(file)
+}
+
+const removeImage = (field: keyof VehicleFormData) => {
+  formData[field] = ''
+  const input = imageUploadRefs[field as keyof typeof imageUploadRefs]
+  if (input.value) {
+    input.value.value = ''
+  }
+}
 
 const errors = reactive<Partial<VehicleFormData>>({})
 const showSuccess = ref(false)
@@ -175,6 +223,16 @@ const handleReset = () => {
   formData.ownerPhone = ''
   formData.unitId = ''
   formData.unitName = ''
+  formData.frontImage = ''
+  formData.backImage = ''
+  formData.leftImage = ''
+  formData.rightImage = ''
+  Object.keys(imageUploadRefs).forEach(key => {
+    const input = imageUploadRefs[key as keyof typeof imageUploadRefs]
+    if (input.value) {
+      input.value.value = ''
+    }
+  })
   Object.keys(errors).forEach(key => delete errors[key as keyof VehicleFormData])
   emit('reset')
 }
@@ -357,6 +415,50 @@ const handleReset = () => {
           />
           <p v-if="errors.ownerPhone" class="text-sm text-red-500">{{ errors.ownerPhone }}</p>
         </div>
+      </div>
+
+      <div class="space-y-4">
+        <label class="block text-sm font-medium text-gray-700">车辆四方位照片</label>
+        <div class="grid grid-cols-4 gap-4">
+          <div
+            v-for="(label, field) in imageLabels"
+            :key="field"
+            class="relative group"
+          >
+            <div
+              v-if="formData[field as keyof VehicleFormData]"
+              class="relative aspect-video rounded-lg overflow-hidden border-2 border-dashed border-gray-300 cursor-pointer hover:border-blue-500 transition-colors"
+              @click="removeImage(field as keyof VehicleFormData)"
+            >
+              <img
+                :src="formData[field as keyof VehicleFormData]"
+                :alt="label"
+                class="w-full h-full object-cover"
+              />
+              <div class="absolute inset-0 bg-black bg-opacity-40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                <span class="text-white text-sm">点击删除</span>
+              </div>
+            </div>
+            <div
+              v-else
+              class="aspect-video rounded-lg border-2 border-dashed border-gray-300 flex flex-col items-center justify-center cursor-pointer hover:border-blue-500 hover:bg-blue-50 transition-all"
+              @click="imageUploadRefs[field as keyof typeof imageUploadRefs].value?.click()"
+            >
+              <svg class="w-8 h-8 text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+              <span class="text-sm text-gray-500">{{ label }}</span>
+            </div>
+            <input
+              :ref="(el) => { imageUploadRefs[field as keyof typeof imageUploadRefs].value = el as HTMLInputElement }"
+              type="file"
+              accept="image/*"
+              class="hidden"
+              @change="handleImageUpload(field as keyof VehicleFormData, $event)"
+            />
+          </div>
+        </div>
+        <p class="text-xs text-gray-500">支持上传车辆前、后、左、右四个方位的实拍照片，用于完善车辆档案</p>
       </div>
 
       <div class="flex items-center justify-end gap-4 pt-4">
