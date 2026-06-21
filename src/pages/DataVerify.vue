@@ -1,11 +1,15 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { ClipboardCheck, CheckCircle, XCircle, Search, Filter, Clock, User, MapPin, CheckSquare, Square } from 'lucide-vue-next'
+import { ClipboardCheck, CheckCircle, XCircle, Search, Filter, Clock, User, MapPin, CheckSquare, Square, Download, AlertCircle } from 'lucide-vue-next'
 import { useDataStore } from '@/stores/dataStore'
+import { exportToExcel, exportToCsv, validateExportData, type ExportFieldConfig, type ExportValidationResult } from '@/lib/export'
 
 const searchKeyword = ref('')
 const filterStatus = ref('all')
 const selectedIds = ref<string[]>([])
+const exportFormat = ref<'excel' | 'csv'>('excel')
+const showExportModal = ref(false)
+const validationResult = ref<ExportValidationResult | null>(null)
 
 const dataStore = useDataStore()
 
@@ -122,6 +126,51 @@ const getStatusText = (status: string) => {
       return '未知'
   }
 }
+
+const exportFields: ExportFieldConfig[] = [
+  { key: 'unitName', label: '单位名称', required: true },
+  { key: 'creditCode', label: '统一社会信用代码', required: true },
+  { key: 'contactName', label: '联系人', required: true },
+  { key: 'contactPhone', label: '联系电话', required: true },
+  { key: 'address', label: '地址' },
+  { key: 'createTime', label: '创建时间' },
+  { key: 'status', label: '状态', formatter: (v) => getStatusText(v as string) },
+]
+
+const handleExport = () => {
+  if (filteredRecords.value.length === 0) {
+    alert('暂无数据可导出')
+    return
+  }
+  
+  validationResult.value = validateExportData(filteredRecords.value, exportFields)
+  
+  if (!validationResult.value.isValid) {
+    showExportModal.value = true
+    return
+  }
+  
+  performExport()
+}
+
+const performExport = () => {
+  if (exportFormat.value === 'excel') {
+    exportToExcel({
+      data: filteredRecords.value,
+      fields: exportFields,
+      fileName: '数据核实记录',
+      sheetName: '审核列表',
+    })
+  } else {
+    exportToCsv({
+      data: filteredRecords.value,
+      fields: exportFields,
+      fileName: '数据核实记录',
+    })
+  }
+  
+  showExportModal.value = false
+}
 </script>
 
 <template>
@@ -142,6 +191,13 @@ const getStatusText = (status: string) => {
           <Clock class="w-4 h-4 text-yellow-600" />
           <span class="text-sm font-medium text-yellow-700">{{ pendingCount }} 条待审核</span>
         </div>
+        <button
+          @click="handleExport"
+          class="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
+        >
+          <Download class="w-4 h-4" />
+          导出数据
+        </button>
       </div>
     </div>
 
@@ -294,5 +350,97 @@ const getStatusText = (status: string) => {
         </div>
       </div>
     </div>
+
+    <Teleport to="body">
+      <div 
+        v-if="showExportModal" 
+        class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+        @click.self="showExportModal = false"
+      >
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-lg overflow-hidden">
+          <div class="flex items-center gap-3 px-6 py-4 border-b border-gray-100">
+            <div class="w-10 h-10 bg-yellow-100 rounded-lg flex items-center justify-center">
+              <AlertCircle class="w-5 h-5 text-yellow-600" />
+            </div>
+            <div>
+              <h3 class="font-semibold text-gray-800">导出校验提醒</h3>
+              <p class="text-sm text-gray-500">检测到数据存在以下问题</p>
+            </div>
+          </div>
+
+          <div class="px-6 py-4 max-h-60 overflow-y-auto">
+            <div v-if="validationResult?.missingFields?.length" class="mb-4">
+              <p class="text-sm font-medium text-gray-700 mb-2">缺少必填字段:</p>
+              <div class="flex flex-wrap gap-2">
+                <span 
+                  v-for="field in validationResult.missingFields" 
+                  :key="field"
+                  class="px-3 py-1 bg-red-50 text-red-600 rounded-full text-sm"
+                >
+                  {{ exportFields.find(f => f.key === field)?.label || field }}
+                </span>
+              </div>
+            </div>
+            
+            <div v-if="validationResult?.invalidRows?.length" class="space-y-3">
+              <p class="text-sm font-medium text-gray-700">数据行问题:</p>
+              <div 
+                v-for="row in validationResult.invalidRows.slice(0, 10)" 
+                :key="row.index"
+                class="p-3 bg-gray-50 rounded-lg"
+              >
+                <p class="text-sm font-medium text-gray-700">第 {{ row.index }} 行:</p>
+                <ul class="mt-1 space-y-1">
+                  <li v-for="issue in row.issues" :key="issue" class="text-sm text-red-600">
+                    - {{ issue }}
+                  </li>
+                </ul>
+              </div>
+              <p v-if="validationResult.invalidRows.length > 10" class="text-sm text-gray-500">
+                还有 {{ validationResult.invalidRows.length - 10 }} 行存在问题...
+              </p>
+            </div>
+          </div>
+
+          <div class="px-6 py-4 bg-gray-50 flex items-center justify-between">
+            <div class="flex items-center gap-4">
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input 
+                  v-model="exportFormat" 
+                  type="radio" 
+                  value="excel" 
+                  class="w-4 h-4 text-blue-600"
+                />
+                <span class="text-sm text-gray-700">Excel (.xlsx)</span>
+              </label>
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input 
+                  v-model="exportFormat" 
+                  type="radio" 
+                  value="csv" 
+                  class="w-4 h-4 text-blue-600"
+                />
+                <span class="text-sm text-gray-700">CSV (.csv)</span>
+              </label>
+            </div>
+            <div class="flex items-center gap-3">
+              <button
+                @click="showExportModal = false"
+                class="px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                取消
+              </button>
+              <button
+                @click="performExport"
+                class="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                <CheckCircle class="w-4 h-4" />
+                继续导出
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
